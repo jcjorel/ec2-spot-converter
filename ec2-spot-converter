@@ -618,7 +618,7 @@ steps = [
         "Description": "Read DynamoDB state table..."
     },
     {
-        "Name" : "read_instance_state",
+        "Name" : "discover_instance_state",
         "PrettyName" : "DiscoverInstanceState",
         "Function": discover_instance_state,
         "Description": "Discover Instance state..."
@@ -802,10 +802,10 @@ if __name__ == '__main__':
             last_succes_step = step_names.index(current_step)
             if i <= last_succes_step:
                 display_status = ": RECOVERED STATE. SKIPPED!"
-                if "ConversionStepReasons" in states and step_name in states["ConversionStepReasons"]:
-                    logger.info(f"  => SUCCESS. %s" % states["ConversionStepReasons"][step_name])
         logger.info(f"[STEP %d/%d] %s %s" % (i + 1, len(steps), step["Description"], display_status))
         if display_status != "":
+            if "ConversionStepReasons" in states and step_name in states["ConversionStepReasons"]:
+                logger.info(f"  => SUCCESS. %s" % states["ConversionStepReasons"][step_name])
             continue
 
         return_code, reason, keys = step["Function"]()
