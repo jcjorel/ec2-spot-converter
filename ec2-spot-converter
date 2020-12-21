@@ -406,6 +406,24 @@ def terminate_instance():
     logger.debug(response)
     return (True, f"Successfully terminated instance {instance_id}.", {})
 
+def wait_resource_release():
+    instance    = states["InstanceStateCheckpoint"]
+    eni_ids       = [eni["NetworkInterfaceId"] for eni in instance["NetworkInterfaces"]]
+    max_attempts = 300/5
+    while max_attempts and len(eni_ids):
+        response = ec2_client.describe_network_interfaces(NetworkInterfaceIds=eni_ids)
+        logger.debug(response)
+        max_attempts -= 1
+        not_avail = [vol for vol in response["NetworkInterfaces"] if vol["Status"] != "available"]
+        if len(not_avail) == 0:
+            break
+        if max_attempts % 5 == 0:
+            logger.info("Waiting for detached ENIs to become 'available'...")
+        time.sleep(5)
+    if max_attempts == 0:
+        return (False, f"Not all ENIs where 'available' before timeout : {eni_ids}.", {})
+    return (True, f"All resource released : {eni_ids}.", {})
+
 def create_new_instance():
     instance     = states["InstanceStateCheckpoint"]
     kepts_blks   = states["VolumesInAMI"]
@@ -691,6 +709,12 @@ steps = [
         "PrettyName" : "TerminateInstance",
         "Function": terminate_instance,
         "Description": "Terminate instance..."
+    },
+    {
+        "Name" : "wait_resource_release",
+        "PrettyName" : "WaitResourceRelease",
+        "Function": wait_resource_release,
+        "Description": "Wait resource release..."
     },
     {
         "Name" : "create_new_instance",
