@@ -579,7 +579,7 @@ def reattach_volumes():
             VolumeId=vol)
         attached_ids.append(vol)
     if len(attached_ids):
-        logger.warning("/!\ WARNING /!\ Volumes attached after boot. YOUR INSTANCE MAY NEED A REBOOT!")
+        logger.warning("/!\ WARNING /!\ Volumes attached after boot. YOUR NEW INSTANCE MAY NEED A REBOOT!")
     return (True, f"Successfully reattached volumes {attached_ids}...", {
         "ReattachedVolumesInstanceState": get_instance_details(instance_id=instance_id)
         })
@@ -867,5 +867,5 @@ if __name__ == '__main__':
         review_conversion_results()
 
     if "DetachedVolumes" in states and len(states["DetachedVolumes"]):
-        logger.warning("/!\ WARNING /!\ Volumes attached after boot. YOUR INSTANCE MAY NEED A REBOOT!")
+        logger.warning("/!\ WARNING /!\ Volumes attached after boot. YOUR NEW INSTANCE MAY NEED A REBOOT!")
 
