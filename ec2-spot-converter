@@ -232,7 +232,7 @@ def wait_stop_instance():
     max_attempts   = 90
     while instance_state != "stopped":
         logger.info("Waiting for instance to stop...")
-        time.sleep(10)
+        time.sleep(15)
         instance = get_instance_details()
         if instance is None:
             return (False, "Can't get instance details! (???)", {})
@@ -306,6 +306,7 @@ def wait_volume_detach():
         time.sleep(5)
     if max_attempts == 0:
         return (False, f"Not all volume where 'available' before timeout : {volume_ids}.", {})
+    time.sleep(1) # Superstition...
     return (True, f"All detached volumes are 'available' : {volume_ids}.", {})
 
 def create_ami():
@@ -371,7 +372,7 @@ def wait_ami():
         if image_state == "available":
             break
         logger.info(f"Waiting for image {ami_id} to be available...")
-        time.sleep(15)
+        time.sleep(20)
         max_attempts -= 1
     if max_attempts == 0:
         return (False, f"AMI {ami_id} creation timeout!", {})
@@ -401,6 +402,7 @@ def terminate_instance():
         logger.info(f"Cancelling Spot request {spot_request_id}...")
         response        = ec2_client.cancel_spot_instance_requests(SpotInstanceRequestIds=[spot_request_id])
         logger.debug(response)
+        time.sleep(2)
 
     response = ec2_client.terminate_instances(InstanceIds=[instance_id])
     logger.debug(response)
@@ -422,6 +424,7 @@ def wait_resource_release():
         time.sleep(5)
     if max_attempts == 0:
         return (False, f"Not all ENIs where 'available' before timeout : {eni_ids}.", {})
+    time.sleep(2) # Superstition... Without proofs, we BELIEVE that it is good to not rush create the new instance...
     return (True, f"All resource released : {eni_ids}.", {})
 
 def create_new_instance():
