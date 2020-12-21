@@ -13,6 +13,7 @@ import json
 import time
 import tempfile
 from collections import defaultdict
+from datetime import datetime, timezone
 import pdb
 
 # Configure logging
@@ -89,7 +90,7 @@ def create_state_table(table_name):
     )
     logger.debug(response)
 
-def set_state(attribute, value):
+def set_state(attribute, value, force_persist=False):
     global states
     table_name = args["dynamodb_tablename"]
     jobid      = args["instance_id"]
@@ -100,9 +101,12 @@ def set_state(attribute, value):
             )
         states = {}
     else:
+        v = json.dumps(value, default=str)
+        if not force_persist and attribute in states and states[attribute] == value:
+            return # No need to write again the same value
         expression        = f"set {attribute}=:value"
         expression_values = {
-            ':value': { 'S': json.dumps(value, default=str)}
+            ':value': { 'S': v}
             }
         response = dynamodb_client.update_item(
             Key = {
@@ -199,6 +203,7 @@ def discover_instance_state():
         return (True, "Instance already in 'stopped' state. Pre-requiste passed.", {
             "InitialInstanceState": instance,
             "StartTime": start_time,
+            "StartDate": str(datetime.now(tz=timezone.utc))
             })
 
     if "stop_instance" not in args:
@@ -209,11 +214,13 @@ def discover_instance_state():
         return (True, f"Stopping {instance_id}...", {
             "InitialInstanceState": instance,
             "StartTime": start_time,
+            "StartDate": str(datetime.now(tz=timezone.utc))
             })
     else:
         return (True, f"{instance_state} is in state {instance_state}...", {
             "InitialInstanceState": instance,
             "StartTime": start_time,
+            "StartDate": str(datetime.now(tz=timezone.utc))
             })
 
 def wait_stop_instance():
@@ -816,7 +823,7 @@ if __name__ == '__main__':
         set_state("ConversionStep", step_name)
         reasons = states["ConversionStepReasons"] if "ConversionStepReasons" in states else {}
         reasons[step_name] = reason
-        set_state("ConversionStepReasons", reasons)
+        set_state("ConversionStepReasons", reasons, force_persist=True)
         for s in keys:
             if s != "JobId": set_state(s, keys[s])
 
