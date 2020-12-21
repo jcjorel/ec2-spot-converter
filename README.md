@@ -164,6 +164,7 @@ optional arguments:
                         states.
   --stop-instance       Stop instance instead of failing because it is in
                         'running' state.
+  --reboot-if-needed    Reboot the new instance if needed.
   --debug               Turn on debug traces.
   --review-conversion-result
                         Display side-by-side conversion result. Note:
