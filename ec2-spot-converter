@@ -794,13 +794,16 @@ if __name__ == '__main__':
     start_time = time.time()
     step_names = [s["Name"] for s in steps]
     for i in range(0, len(steps)):
-        step = steps[i]
+        step      = steps[i]
+        step_name = step["Name"]
         display_status = ""
         if "ConversionStep" in states:
             current_step=states["ConversionStep"]
             last_succes_step = step_names.index(current_step)
             if i <= last_succes_step:
                 display_status = ": RECOVERED STATE. SKIPPED!"
+                if "ConversionStepReasons" in states and step_name in states["ConversionStepReasons"]:
+                    logger.info(f"  => SUCCESS. %s" % states["ConversionStepReasons"][step_name])
         logger.info(f"[STEP %d/%d] %s %s" % (i + 1, len(steps), step["Description"], display_status))
         if display_status != "":
             continue
@@ -810,12 +813,14 @@ if __name__ == '__main__':
             logger.error(f"Failed to perform step '%s'! Reason={reason}" % step["PrettyName"])
             sys.exit(1)
         logger.info(f"  => SUCCESS. {reason}")
-        set_state("ConversionStep", step["Name"])
-        set_state("ConversionStepReason", reason)
+        set_state("ConversionStep", step_name)
+        reasons = states["ConversionStepReasons"] if "ConversionStepReasons" in states else {}
+        reasons[step_name] = reason
+        set_state("ConversionStepReasons", reasons)
         for s in keys:
             if s != "JobId": set_state(s, keys[s])
 
-    logger.info(pprint(states["FinalInstanceState"]))
+    logger.debug(pprint(states["FinalInstanceState"]))
     logger.info("Conversion successful! New instance id: %s, ElapsedTime: %s seconds" % 
             (states["NewInstanceId"], int(states["EndTime"] - states["StartTime"]))) 
 
