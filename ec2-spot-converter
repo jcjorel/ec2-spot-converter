@@ -303,8 +303,8 @@ def wait_volume_detach():
             logger.info("Waiting for detached volumes to become 'available'...")
         time.sleep(5)
     if max_attempts == 0:
-        return (False, f"Not all volume where availabe : {volume_ids}.", {})
-    return (True, f"All detached volumes are 'available : {volume_ids}.", {})
+        return (False, f"Not all volume where 'available' before timeout : {volume_ids}.", {})
+    return (True, f"All detached volumes are 'available' : {volume_ids}.", {})
 
 def create_ami():
     instance    = states["WithoutExtraVolumesInstanceState"]
