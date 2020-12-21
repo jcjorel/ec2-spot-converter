@@ -118,7 +118,7 @@ The operation is similar than the conversion to Spot model with the difference t
 ### Convert a Spot instance to Spot model to change the instance type and/or CPU Options
 
 `ec2-spot-converter`tool can be used to replace a Spot instance by another one just changing the instance type. This operation is not 
-possible currently "in-place" through an AWS EC2 API so the tool will terminate and replace an instance preserving all attributes but
+yey possible "in-place" through an AWS EC2 API so the tool will terminate and replace the Spot instance preserving all attributes but
 updating the instance type (or CPU options) during the process.
 
 Specify options `--instance-type` and/or `--cpu-options`on an existing Spot instance to start conversion. 
