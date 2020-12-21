@@ -624,8 +624,10 @@ def untag_resources():
     instance_id   = states["NewInstanceId"]
     orig_instance = states["ConversionStartInstanceState"]
     eni_ids       = [eni["NetworkInterfaceId"] for eni in orig_instance["NetworkInterfaces"]]
+    volume_ids    = states["DetachedVolumes"]
     resources     = [instance_id]
     resources.extend(eni_ids)
+    resources.extend(volume_ids)
 
     response  = ec2_client.delete_tags(Resources=resources, Tags=[{'Key': 'ec2-spot-converter:job-id'}]) 
     logger.debug(response)
