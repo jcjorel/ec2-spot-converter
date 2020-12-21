@@ -655,8 +655,21 @@ def untag_resources():
 
 def deregister_image():
     ami_id = states["ImageId"]
+
+    response = ec2_client.describe_images(ImageIds=[ami_id])
+    logger.debug(response)
+
+    img      = response["Images"][0]
+    snap_ids = [blk["Ebs"]["SnapshotId"] for blk in img["BlockDeviceMappings"]]
     response = ec2_client.deregister_image(ImageId=ami_id)
     logger.debug(response)
+
+    time.sleep(0.5)
+    for snap_id in snap_ids:
+        logger.info(f"Deleting snapshot '{snap_id}'...")
+        response = ec2_client.delete_snapshot(SnapshotId=snap_id)
+        logger.debug(response)
+
     return (True, f"Successfully deregistered AMI '{ami_id}'.", {
         "EndTime": time.time()
         })
