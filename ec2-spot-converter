@@ -426,7 +426,7 @@ def wait_resource_release():
     if max_attempts == 0:
         return (False, f"Not all ENIs where 'available' before timeout : {eni_ids}.", {})
     time.sleep(2) # Superstition... Without proofs, we BELIEVE that it is good to not rush create the new instance...
-    return (True, f"All resource released : {eni_ids}.", {})
+    return (True, f"All resources released : {eni_ids}.", {})
 
 def create_new_instance():
     instance     = states["InstanceStateCheckpoint"]
@@ -578,7 +578,7 @@ def reattach_volumes():
             InstanceId=instance_id,
             VolumeId=vol)
         attached_ids.append(vol)
-    if len(attached_ids):
+    if len(attached_ids) and not args["reboot_if_needed"]:
         logger.warning("/!\ WARNING /!\ Volumes attached after boot. YOUR NEW INSTANCE MAY NEED A REBOOT!")
     return (True, f"Successfully reattached volumes {attached_ids}...", {
         "ReattachedVolumesInstanceState": get_instance_details(instance_id=instance_id)
@@ -619,6 +619,24 @@ def manage_elastic_ip():
                 reassociated_eips.append(eip["PublicIp"])
                 logger.debug(response)
     return (True, f"Reassociated EIPs '{reassociated_eips}'...", {})
+
+def reboot_if_needed():
+    instance_id   = states["NewInstanceId"]
+    volume_ids    = states["DetachedVolumes"]
+    if len(volume_ids) == 0:
+        return (False, f"No reason to reboot instance '{instance_id}'... Skipping...", {
+            "Rebooted": False
+            })
+    if not args["reboot_if_needed"]:
+        return (True, f"It is recommend to reboot '{instance_id}'... Please specify --reboot-if-needed option next time.", {
+            "Rebooted": False
+            })
+
+    response = ec2_client.reboot_instances(InstanceIds=[instance_id])
+    logger.debug(response)
+    return (True, f"Successfully rebooted '{instance_id}'.", {
+        "Rebooted": True
+        })
 
 def untag_resources():
     instance_id   = states["NewInstanceId"]
@@ -753,6 +771,12 @@ steps = [
         "Description": "Manage Elastic IP..."
     },
     {
+        "Name" : "reboot_if_needed",
+        "PrettyName" : "RebootIfNeeded",
+        "Function": reboot_if_needed,
+        "Description": "Reboot new instance (if needed and requested)..."
+    },
+    {
         "Name" : "untag_resources",
         "PrettyName" : "UntagResources",
         "Function": untag_resources,
@@ -785,7 +809,8 @@ def review_conversion_results():
 args = {}
 default_args = {
         "dynamodb_tablename": "ec2-spot-converter-state-table",
-        "target_billing_model": "spot"
+        "target_billing_model": "spot",
+        "reboot_if_needed": False
     }
 if __name__ == '__main__':
     generate_db = "--generate-dynamodb-table" in sys.argv
@@ -811,6 +836,8 @@ if __name__ == '__main__':
     parser.add_argument('--generate-dynamodb-table', help="Generate a DynamoDB table name to hold conversion states.",
             action='store_true', required=False, default=argparse.SUPPRESS)
     parser.add_argument('--stop-instance', help="Stop instance instead of failing because it is in 'running' state.",
+            action='store_true', required=False, default=argparse.SUPPRESS)
+    parser.add_argument('--reboot-if-needed', help="Reboot the new instance if needed.", 
             action='store_true', required=False, default=argparse.SUPPRESS)
     parser.add_argument('--debug', help="Turn on debug traces.", 
             action='store_true', required=False, default=argparse.SUPPRESS)
@@ -866,6 +893,6 @@ if __name__ == '__main__':
     if args["review_conversion_result"]:
         review_conversion_results()
 
-    if "DetachedVolumes" in states and len(states["DetachedVolumes"]):
+    if "DetachedVolumes" in states and len(states["DetachedVolumes"]) and not args["reboot_if_needed"]:
         logger.warning("/!\ WARNING /!\ Volumes attached after boot. YOUR NEW INSTANCE MAY NEED A REBOOT!")
 
