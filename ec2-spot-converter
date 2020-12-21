@@ -245,6 +245,22 @@ def wait_stop_instance():
         "ConversionStartInstanceState": instance
         })
 
+def tag_all_resources():
+    instance    = states["ConversionStartInstanceState"]
+    instance_id = instance["InstanceId"]
+
+    volume_ids  = [blk["Ebs"]["VolumeId"] for blk in instance["BlockDeviceMappings"]]
+    eni_ids     = [eni["NetworkInterfaceId"] for eni in instance["NetworkInterfaces"]]
+
+    resources = [instance_id]
+    resources.extend(eni_ids)
+    resources.extend(volume_ids)
+    response  = ec2_client.create_tags(Resources=resources, Tags=[{'Key': 'ec2-spot-converter:job-id', 'Value': instance_id}]) 
+    logger.debug(response)
+    return (True, f"Successfully tagged {resources}.", {
+        "EniIds" : eni_ids
+        })
+
 def get_volume_details():
     instance    = states["ConversionStartInstanceState"]
     volume_ids  = [blk["Ebs"]["VolumeId"] for blk in instance["BlockDeviceMappings"]]
@@ -329,21 +345,6 @@ def create_ami():
     image_id = response["Images"][0]["ImageId"]
     return (True, f"AMI image {image_name}/{image_id} started.", {
         "ImageId": image_id
-        })
-
-def tag_all_resources():
-    instance    = states["WithoutExtraVolumesInstanceState"]
-    instance_id = instance["InstanceId"]
-
-    eni_ids     = [eni["NetworkInterfaceId"] for eni in instance["NetworkInterfaces"]]
-
-    resources = [instance_id]
-    resources.extend(eni_ids)
-    resources.extend(states["DetachedVolumes"])
-    response  = ec2_client.create_tags(Resources=resources, Tags=[{'Key': 'ec2-spot-converter:job-id', 'Value': instance_id}]) 
-    logger.debug(response)
-    return (True, f"Successfully tagged {resources}.", {
-        "EniIds" : eni_ids
         })
 
 
@@ -660,6 +661,12 @@ steps = [
         "Description": "Wait for 'stopped' Instance state..."
     },
     {
+        "Name" : "tag_all_resources",
+        "PrettyName" : "TagAllResources",
+        "Function": tag_all_resources,
+        "Description": "Tag all resources (Instance, ENI(s), Volumes) with ec2-spot-converter job Id..."
+    },
+    {
         "Name" : "get_volume_details",
         "PrettyName" : "GetVolumeDetails",
         "Function": get_volume_details,
@@ -682,12 +689,6 @@ steps = [
         "PrettyName" : "CreateAmi",
         "Function": create_ami,
         "Description": "Start AMI creation..."
-    },
-    {
-        "Name" : "tag_all_resources",
-        "PrettyName" : "TagAllResources",
-        "Function": tag_all_resources,
-        "Description": "Tag all resources (Instance, ENI(s), Volumes) with ec2-spot-converter job Id..."
     },
     {
         "Name" : "prepare_network_interfaces",
