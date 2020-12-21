@@ -631,7 +631,7 @@ def untag_resources():
 
     response  = ec2_client.delete_tags(Resources=resources, Tags=[{'Key': 'ec2-spot-converter:job-id'}]) 
     logger.debug(response)
-    return (True, f"Successfully untagged {eni_ids}.", {
+    return (True, f"Successfully untagged {resources}.", {
         "FinalInstanceState": get_instance_details(instance_id=instance_id)
         })
 
