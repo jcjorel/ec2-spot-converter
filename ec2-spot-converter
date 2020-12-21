@@ -1,8 +1,10 @@
 #!/usr/bin/python3
 """
-This tool convert EC2 instances back and forth from on-demand and spot billing models while preserving
+This tool converts EC2 instances back and forth from on-demand and Spot billing models while preserving
 network attributes (Private IP addresses, Elastic IP), Storage (Volumes).
 It also allows replacement of Spot instances with new ones to update the instance type.
+
+See https://github.com/jcjorel/ec2-spot-converter
 
    jeancharlesjorel@gmail.com
 """
