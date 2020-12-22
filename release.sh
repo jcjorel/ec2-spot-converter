@@ -13,7 +13,6 @@ echo ${VERSION} >VERSION.txt
 sed "s/::Version::/$VERSION/g" <src/${APP_NAME}.py | 
 	sed "s/::ReleaseDate::/$(date)/g" > releases/${versionned_file}
 chmod a+x releases/${versionned_file}
-ln -sf releases/${versionned_file} ${APP_NAME}
 ln -sf ${versionned_file} releases/${APP_NAME}-latest
 git add releases/${versionned_file} releases/${APP_NAME}-latest
 git commit -m "Releasing ${APP_NAME} version $VERSION" releases/${versionned_file} releases/${APP_NAME}-latest VERSION.txt

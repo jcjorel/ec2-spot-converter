@@ -15,7 +15,7 @@ Conversion time ranges from 2 to 5 minutes depending on the instance type.
 * Install the tool on an EC2 Linux instance located **in the same account and region than the instance to convert**,
 
 ```shell
-curl https://raw.githubusercontent.com/jcjorel/ec2-spot-converter/master/ec2-spot-converter -o ec2-spot-converter
+curl https://raw.githubusercontent.com/jcjorel/ec2-spot-converter/master/releases/ec2-spot-converter-latest -o ec2-spot-converter
 chmod u+x ec2-spot-converter
 ```
 
