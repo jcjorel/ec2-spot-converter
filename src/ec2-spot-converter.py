@@ -6,7 +6,7 @@ It also allows replacement of Spot instances with new ones to update the instanc
 
 See https://github.com/jcjorel/ec2-spot-converter
 
-   jeancharlesjorel@gmail.com
+Author: jeancharlesjorel@gmail.com
 """
 VERSION="::Version::"
 RELEASE_DATE="::ReleaseDate::"
