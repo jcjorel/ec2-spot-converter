@@ -235,6 +235,8 @@ def wait_stop_instance():
         if instance is None:
             return (False, "Can't get instance details! (???)", {})
         instance_state = instance["State"]["Name"]
+        if instance_state == "stopped":
+            break
         logger.info(f"Waiting for instance to stop... (current state={instance_state})")
         time.sleep(15)
         max_attempts  -= 1
@@ -545,7 +547,8 @@ def wait_new_instance():
     max_attempts = 600
     while max_attempts and status_code != "running":
         instance      = get_instance_details(instance_id=instance_id)
-        status_code   = instance["State"]["Name"]
+        if instance is not None:
+            status_code   = instance["State"]["Name"]
         max_attempts -= 1
         if max_attempts % 30 == 0:
             logger.info("Waiting for instance to come up...")
@@ -624,7 +627,7 @@ def reboot_if_needed():
     instance_id   = states["NewInstanceId"]
     volume_ids    = states["DetachedVolumes"]
     if len(volume_ids) == 0:
-        return (False, f"No reason to reboot instance '{instance_id}'... Skipping...", {
+        return (True, f"No reason to reboot instance '{instance_id}'... Skipping...", {
             "Rebooted": False
             })
     if not args["reboot_if_needed"]:
@@ -809,11 +812,13 @@ def review_conversion_results():
     initial_instance_state = states["InitialInstanceState"]
     initial_instance_state["NetworkInterfaces"] = sorted(initial_instance_state["NetworkInterfaces"], 
             key=lambda i: int(i["Attachment"]["DeviceIndex"]))
+    initial_instance_state["Tags"] = sorted(initial_instance_state["Tags"], key=lambda t: t["Key"])
     o_file.write(bytes(pprint(initial_instance_state), "utf-8"))
     n_file = tempfile.NamedTemporaryFile(prefix="new_instance-", suffix=".json", buffering=0)   
     final_instance_state   = states["FinalInstanceState"]
     final_instance_state["NetworkInterfaces"] = sorted(final_instance_state["NetworkInterfaces"], 
             key=lambda i: int(i["Attachment"]["DeviceIndex"]))
+    final_instance_state["Tags"] = sorted(final_instance_state["Tags"], key=lambda t: t["Key"])
     n_file.write(bytes(pprint(final_instance_state), "utf-8"))
     os.system("vim -c ':syntax off' -d %s %s" % (o_file.name, n_file.name))
     o_file.close()
