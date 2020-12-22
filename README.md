@@ -127,26 +127,25 @@ Specify options `--instance-type` and/or `--cpu-options`on an existing Spot inst
 # Command line usage
 
 ```shell
-ec2-spot-converter -h
-usage: ec2-spot-converter [-h] --instance-id INSTANCE_ID
-                          [--target-billing-model {spot,on-demand}]
-                          [--target-instance-type TARGET_INSTANCE_TYPE]
+usage: ec2-spot-converter [-h] -i INSTANCE_ID [-m {spot,on-demand}]
+                          [-t TARGET_INSTANCE_TYPE]
                           [--cpu-options CPU_OPTIONS]
                           [--max-spot-price MAX_SPOT_PRICE]
                           [--dynamodb-tablename DYNAMODB_TABLENAME]
-                          [--generate-dynamodb-table] [--stop-instance]
-                          [--debug] [--review-conversion-result]
+                          [--generate-dynamodb-table] [-s]
+                          [--reboot-if-needed] [--delete-ami] [-d] [-v]
+                          [-r]
 
-EC2 Spot converter
+EC2 Spot converter v0.1.0 (Tue Dec 22 21:42:24 UTC 2020)
 
 optional arguments:
   -h, --help            show this help message and exit
-  --instance-id INSTANCE_ID
+  -i INSTANCE_ID, --instance-id INSTANCE_ID
                         The id of the EC2 instance to convert.
-  --target-billing-model {spot,on-demand}
+  -m {spot,on-demand}, --target-billing-model {spot,on-demand}
                         The expected billing model after conversion. Default:
                         'spot'
-  --target-instance-type TARGET_INSTANCE_TYPE
+  -t TARGET_INSTANCE_TYPE, --target-instance-type TARGET_INSTANCE_TYPE
                         The expected instance type (ex: m5.large...) after
                         conversion. This flag is only useful when applied to a
                         Spot instance as EC2.modify_instance_attribute() can't
@@ -163,14 +162,15 @@ optional arguments:
   --generate-dynamodb-table
                         Generate a DynamoDB table name to hold conversion
                         states.
-  --stop-instance       Stop instance instead of failing because it is in
+  -s, --stop-instance   Stop instance instead of failing because it is in
                         'running' state.
   --reboot-if-needed    Reboot the new instance if needed.
   --delete-ami          Delete AMI at end of conversion.
-  --debug               Turn on debug traces.
-  --review-conversion-result
-                        Display side-by-side conversion result. Note:
-                        REQUIRES 'VIM' EDITOR!
+  -d, --debug           Turn on debug traces.
+  -v, --version         Display tool version.
+  -r, --review-conversion-result
+                        Display side-by-side conversion result. Note: REQUIRES
+                        'VIM' EDITOR!
 ```
 
 ## Contributing
