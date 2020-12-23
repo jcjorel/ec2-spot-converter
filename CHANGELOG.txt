@@ -1,6 +1,7 @@
 v0.3.0:
 - (Improvment/Major) Added paranoid sanity checks about Spot Requests status. Added the ability to fix 'IncorrectSpotRequestState Exceptions'.
-- (Improvment/Minor) Added a --force option to force a conversion start even if the tool suggests it is not needed.
+- (Improvment/Minor) Added a --force option to force a conversion start even if the tool suggests it is not needed (ex: Spot-to-Spot or On-demand to On-Demand...).
+- (Bug/Major) Rarely, the AMI EC2 service can return a status 'failed'. The tool manage this but the user will have to restart it to retry.
 
 v0.2.0:
 - (Improvment/Major) Added support for Multi-Attached EBS volumes.

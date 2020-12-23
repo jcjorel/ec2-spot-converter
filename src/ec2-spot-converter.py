@@ -189,6 +189,8 @@ def spot_request_need_cancel(spot_request_id, expected_state=[], wait_for_state=
                 raise Exception(f"Spot request {spot_request_id} is not in the expected state "
                     f"(state is '{request_state}', should be among {expected_state})!")
             break
+        if max_attempts == 0:
+            raise Exception("Exception while waiting for Spot request going into the expected state!")
     except ClientError as e:
         if e.response['Error']['Code'] == 'InvalidSpotInstanceRequestID.NotFound':
             return (False, request)
@@ -233,9 +235,10 @@ def discover_instance_state():
                     "--force to convert this Spot instance to a new one.", {}) 
 
     if billing_model == "on-demand":
-        if not instance_is_spot:
+        if not instance_is_spot and not args["force"]:
             return (False, f"Current instance {instance_id} is already an On-Demand instance. "
-                "Use --target-billing-model 'spot' if you want to convert to 'spot' billing model.", {}) 
+                "Use --target-billing-model 'spot' if you want to convert to 'spot' billing model or "
+                "--force to convert this On-Demand instance to a new one.", {}) 
 
     # Warn the user of a problematic condition.
     if problematic_spot_condition:
@@ -448,7 +451,17 @@ def wait_ami():
     image_state  = ""
     while max_attempts and image_state != "available":
         response      = ec2_client.describe_images(ImageIds=[ami_id])
+        logger.debug(response)
         image_state   = response["Images"][0]["State"]
+        if image_state == "failed":
+            logger.error(f"AMI {ami_id} creation failed! Error returned by EC2 AMI service.")
+            response = ec2_client.deregister_image(ImageId=ami_id)
+            logger.debug(response)
+            rewind_step = get_previous_step_of_step("create_ami")
+            set_state("ConversionStep", rewind_step)
+            raise Exception(f"The AMI {ami_id} creation failed! Error returned by EC2 AMI service. It can happen rarely... "
+                            f"Tool state machine sets back to '{rewind_step}' step. "
+                            "Re-run the tool to try again!")
         if image_state == "available":
             break
         logger.info(f"Waiting for image {ami_id} to be available...")
@@ -711,7 +724,7 @@ def reboot_if_needed():
             })
 
     if not args["reboot_if_needed"]:
-        return (True, f"It is recommended to reboot '{instance_id}' but --reboot-if-needed option not in the command line: Do nothing.", {
+        return (True, f"It is recommended to reboot '{instance_id}' but --reboot-if-needed option is not set: Do nothing.", {
             "Rebooted": False
             })
 
@@ -756,6 +769,16 @@ def deregister_image():
 
     return (True, f"Successfully deregistered AMI '{ami_id}'.", {
         })
+
+def get_previous_step_of_step(step):
+    """Return the previous step of the one passed as parameter.
+    """
+    prev_s = None
+    for s in steps:
+        if s["Name"] == step:
+            return prev_s
+        prev_s = s["Name"]
+    return prev_s
 
 steps = [
     {
@@ -919,10 +942,11 @@ if __name__ == '__main__':
         print(f"{VERSION} ({RELEASE_DATE})")
         sys.exit(0)
 
-    generate_db = "--generate-dynamodb-table" in sys.argv
+    require_instance_id = ("--generate-dynamodb-table" not in sys.argv and
+                           "--reset-step" not in sys.argv)
     parser = argparse.ArgumentParser(description=f"EC2 Spot converter {VERSION} ({RELEASE_DATE})")
     parser.add_argument('-i', '--instance-id', help="The id of the EC2 instance to convert.", 
-            type=str, required=not generate_db, default=argparse.SUPPRESS)
+            type=str, required=require_instance_id, default=argparse.SUPPRESS)
     parser.add_argument('-m', '--target-billing-model', help="The expected billing model after conversion. "
             "Default: 'spot'", choices=["spot", "on-demand"],
             type=str, required=False, default=argparse.SUPPRESS)
@@ -936,26 +960,28 @@ if __name__ == '__main__':
             type=str, required=False, default=argparse.SUPPRESS)
     parser.add_argument('--max-spot-price', help="Maximum hourly price for Spot instance target.", 
             type=str, required=False, default=argparse.SUPPRESS)
-    parser.add_argument('--dynamodb-tablename', help="A DynamoDB table name to hold conversion states. "
-            "Default: 'ec2-spot-converter-state-table'", 
-            type=str, required=False, default=argparse.SUPPRESS)
-    parser.add_argument('--generate-dynamodb-table', help="Generate a DynamoDB table name to hold conversion states.",
-            action='store_true', required=False, default=argparse.SUPPRESS)
     parser.add_argument('-s', '--stop-instance', help="Stop instance instead of failing because it is in 'running' state.",
             action='store_true', required=False, default=argparse.SUPPRESS)
     parser.add_argument('--reboot-if-needed', help="Reboot the new instance if needed.", 
             action='store_true', required=False, default=argparse.SUPPRESS)
     parser.add_argument('--delete-ami', help="Delete AMI at end of conversion.", 
             action='store_true', required=False, default=argparse.SUPPRESS)
-    parser.add_argument('-f', '--force', help="Force to start a conversion even if the tool suggests that it is not needed.", 
-            action='store_true', required=False, default=argparse.SUPPRESS)
-    parser.add_argument('-d', '--debug', help="Turn on debug traces.", 
-            action='store_true', required=False, default=argparse.SUPPRESS)
-    parser.add_argument('-v', '--version', help="Display tool version.", 
-            action='store_true', required=False, default=argparse.SUPPRESS)
     parser.add_argument('--do-not-require-stopped-instance', help="Allow instance conversion while instance is in 'running' state. (NOT RECOMMENDED)", 
             action='store_true', required=False, default=argparse.SUPPRESS)
     parser.add_argument('-r', '--review-conversion-result', help="Display side-by-side conversion result. Note: REQUIRES 'VIM' EDITOR!", 
+            action='store_true', required=False, default=argparse.SUPPRESS)
+    parser.add_argument('--dynamodb-tablename', help="A DynamoDB table name to hold conversion states. "
+            "Default: 'ec2-spot-converter-state-table'", 
+            type=str, required=False, default=argparse.SUPPRESS)
+    parser.add_argument('--generate-dynamodb-table', help="Generate a DynamoDB table name to hold conversion states.",
+            action='store_true', required=False, default=argparse.SUPPRESS)
+    parser.add_argument('-f', '--force', help="Force to start a conversion even if the tool suggests that it is not needed.", 
+            action='store_true', required=False, default=argparse.SUPPRESS)
+    parser.add_argument('--reset-step', help="(DANGEROUS) Force the state machine to go back to the specified processing step.",
+            type=int, required=False, default=argparse.SUPPRESS)
+    parser.add_argument('-d', '--debug', help="Turn on debug traces.", 
+            action='store_true', required=False, default=argparse.SUPPRESS)
+    parser.add_argument('-v', '--version', help="Display tool version.", 
             action='store_true', required=False, default=argparse.SUPPRESS)
     cmdargs = {}
     for a in parser.parse_args()._get_kwargs():
@@ -971,8 +997,26 @@ if __name__ == '__main__':
         create_state_table(args["dynamodb_tablename"])
         sys.exit(0)
 
-    start_time = time.time()
     step_names = [s["Name"] for s in steps]
+
+    ## Manage tricks to force the state machine 
+    if "reset_step" in cmdargs:
+        logger.warning("/!\ WARNING /!\ You are manipulating the tool state machine. Make sure you know what you are doing!")
+        expected_step = cmdargs["reset_step"]
+        if expected_step < 1:
+            log.error("Expected step can't be below 1.")
+            sys.exit(1)
+        elif expected_step == 1:
+            set_state("ConversionStep", "")
+            sys.exit(0)
+        elif expected_step <= len(step_names):
+            set_state("ConversionStep", step_names[expected_step-1]["Name"])
+            sys.exit(0)
+        else:
+            log.error("Expected state can't be above %s." % len(step_names))
+            sys.exit(1)
+
+    start_time = time.time()
     for i in range(0, len(steps)):
         step      = steps[i]
         step_name = step["Name"]
