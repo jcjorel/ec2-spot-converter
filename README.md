@@ -165,7 +165,7 @@ optional arguments:
 ## Resilience 
 
 The tool is designed with maximum safety in mind: All conversion states are persisted in a DynamoDB table and, if the tool is interrupted or
-encounter an error, it can be restarted. In such case, the tool will restart at the step where it went interupted.
+encounter an error, it can be restarted. In such case, the tool will restart at the step where it went interrupted.
 
 > At the end of a conversion, it can be replayed as many times as expected: For instance, it is useful to review again the conversion result (VIm Diff window). The `--delete-ami` option can also be added in a subsequent call to suppress the AMI built by a previous tool execution.
 
