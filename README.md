@@ -101,7 +101,7 @@ the original now terminated instance and the newly created one: You should see d
 
 ### Convert a Spot instance to On-Demand model
 
-The operation is similar to the conversion to Spot model with the difference that the option `--target-billing-model` must be set to `on-demand` explicitly.
+The operation is similar to the Spot model conversion with the difference that the option `--target-billing-model` must be set to `on-demand` explicitly.
 
 > Note: `ec2-spot-converter` can also convert back an instance currently in **Spot interrupted** state to On-Demand model.
 
