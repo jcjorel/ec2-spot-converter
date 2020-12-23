@@ -1,3 +1,6 @@
+v0.3.0:
+- (Improvment/Major) Added paranoid sanity checks about Spot Requests status. Added the ability to fix 'IncorrectSpotRequestState Exceptions'.
+
 v0.2.0:
 - (Improvment/Major) Added support for Multi-Attached EBS volumes.
 

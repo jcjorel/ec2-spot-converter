@@ -170,6 +170,24 @@ def get_instance_details(instance_id=None):
         logger.exception(f"Failed to describe instance! {e}")
         return None
 
+def spot_request_need_cancel(spot_request_id, expected_state=[]):
+    request = None
+    try:
+        response      = ec2_client.describe_spot_instance_requests(SpotInstanceRequestIds=[spot_request_id])
+        request       = response["SpotInstanceRequests"][0]
+        request_state = request["State"]
+        if request_state in ["cancelled"]:
+            return (False, request)
+        elif request_state not in expected_state:
+            raise Exception(f"Spot request {spot_request_id} is not in the expected state "
+                "(state is '{request_state}', should be among {expected_state})!")
+    except ClientError as e:
+        if e.response['Error']['Code'] == 'InvalidSpotInstanceRequestID.NotFound':
+            return (False, request)
+        else:
+            raise e
+    return (True, request)
+
 def discover_instance_state():
     start_time  = int(time.time())
     instance_id = args["instance_id"]
@@ -179,20 +197,28 @@ def discover_instance_state():
     logger.debug(pprint(instance))
 
     # Sanity check
-    billing_model    = args["target_billing_model"]
-    instance_is_spot = "SpotInstanceRequestId" in instance
+    billing_model              = args["target_billing_model"]
+    instance_is_spot           = "SpotInstanceRequestId" in instance
+    spot_request               = {}
+    spot_request_state         = None
+    problematic_spot_condition = False
     if instance_is_spot:
-        response      = ec2_client.describe_spot_instance_requests(SpotInstanceRequestIds=[instance["SpotInstanceRequestId"]])
-        request       = response["SpotInstanceRequests"][0]
-        if request["Type"] != "persistent":
-            return (False, f"Spot instance type is different from 'persistent' one! (current=%s)" % request["Type"])
+        pdb.set_trace()
+        spot_request_id = instance["SpotInstanceRequestId"]
+        # Will throw an Exception if something is wrong with the Spot request
+        need_cancel, spot_request = spot_request_need_cancel(spot_request_id, ["open", "active", "disabled"])
+        if spot_request["Type"] != "persistent":
+            return (False, f"Spot instance type is different from 'persistent' one! (current=%s)" % spot_request["Type"])
+        # If we can't retrieve the Spot Request or it is already cancelled, we are in bad shape that require special handling.
+        problematic_spot_condition = spot_request is None or spot_request["State"] == "cancelled"
 
     if billing_model == "spot":
         if instance_is_spot:
             cpu_options = None
             if "cpu_options" in args:
                 cpu_options = json.loads(args["cpu_options"])
-            if (("target_instance_type" not in args or instance["InstanceType"] == args["target_instance_type"]) and 
+            if (not problematic_spot_condition and
+                ("target_instance_type" not in args or instance["InstanceType"] == args["target_instance_type"]) and 
                 (cpu_options is None or cpu_options == instance["CpuOptions"])):
                 return (False, f"Current instance {instance_id} is already a Spot instance. "
                     "Use --target-billing-model 'on-demand' if you want to convert to 'on-demand' billing model.", {}) 
@@ -202,11 +228,33 @@ def discover_instance_state():
             return (False, f"Current instance {instance_id} is already an On-Demand instance. "
                 "Use --target-billing-model 'spot' if you want to convert to 'spot' billing model.", {}) 
 
+    # Warn the user of a problematic condition.
+    if problematic_spot_condition:
+        logger.warning(f"/!\ WARNING /!\ Spot Instance {instance_id} is linked to an invalid Spot Request '{spot_request_id}'! "
+                "This situation is known to create issues like difficulty to stop the instance. "
+                "If you encouter an IncorrectSpotRequestState Exception while attempting to stop the instance, please "
+                "consider converting the running instance AS-IS with '--do-not-require-stopped-instance' option. "
+                "[In order to avoid data consistency issues on the host filesystems either set all filesystems read-only "
+                "directly in the host + unmount all possible volumes, or 'SW halt' the system (See your Operating System manual for details)]")
+        logger.warning("Pausing 10s... PLEASE READ ABOVE IMPORTANT WARNING!!! DO 'Ctrl-C' NOW IF YOU NEED SOME TIME TO READ!!")
+        time.sleep(10)
+    if args["do_not_require_stopped_instance"]:
+        if args["stop_instance"]:
+            logger.warning("/!\ WARNING /!\ --do-not-require-stopped-instance option is set! As --stop-instance is set, a stop command "
+                "is going to be tried. If it fails, the conversion will continue anyway.") 
+        else:
+            logger.warning("/!\ WARNING /!\ --do-not-require-stopped-instance option is set! As --stop-instance is NOT set, "
+                "the conversion will start directly on the running instance.") 
+        logger.warning("Pausing 10s... PLEASE READ ABOVE IMPORTANT WARNING!!! DO 'Ctrl-C' NOW IF YOU NEED SOME TIME TO READ!!")
+        time.sleep(10)
+
     # 'stopped' state management.
     instance_state = instance["State"]["Name"]
     if instance_state == "stopped":
         return (True, "Instance already in 'stopped' state. Pre-requisite passed.", {
             "InitialInstanceState": instance,
+            "SpotRequest": spot_request,
+            "FailedStop": False,
             "StartTime": start_time,
             "StartDate": str(datetime.now(tz=timezone.utc))
             })
@@ -214,26 +262,35 @@ def discover_instance_state():
     if "stop_instance" not in args:
         return (False, f"Instance '{instance_id}' must be in 'stopped' state (current={instance_state}) ! Use --stop-instance if you want to stop it.", {})
 
+    failed_stop = False
+    msg         = f"{instance_state} is in state {instance_state}..."
     if instance_state in ["pending", "running"]:
-        ec2_client.stop_instances(InstanceIds=[instance_id])
-        return (True, f"Stopping '{instance_id}'...", {
-            "InitialInstanceState": instance,
-            "StartTime": start_time,
-            "StartDate": str(datetime.now(tz=timezone.utc))
-            })
-    else:
-        return (True, f"{instance_state} is in state {instance_state}...", {
-            "InitialInstanceState": instance,
-            "StartTime": start_time,
-            "StartDate": str(datetime.now(tz=timezone.utc))
-            })
+        try:
+            msg = f"Stopping '{instance_id}'..."
+            ec2_client.stop_instances(InstanceIds=[instance_id])
+        except ClientError as e:
+            error_code = e.response['Error']['Code']
+            if args["do_not_require_stopped_instance"] and error_code == 'IncorrectSpotRequestState':
+                msg = str(f"Received an Exception {error_code} while attempting to stop instance. Continue anyway with the running instance as "
+                            "--do-not-require-stopped-state option is set.")
+                failed_stop = True
+            else:
+                raise e
+    return (True, msg, {
+        "InitialInstanceState": instance,
+        "SpotRequest": spot_request,
+        "FailedStop": failed_stop,
+        "StartTime": start_time,
+        "StartDate": str(datetime.now(tz=timezone.utc))
+        })
 
 def wait_stop_instance():
+    failed_stop    = states["FailedStop"]
     instance       = states["InitialInstanceState"]
     instance_id    = instance["InstanceId"]
-    instance_state = "unknown"
+    instance_state = instance["State"]["Name"]
     max_attempts   = 100
-    while instance_state != "stopped":
+    while not failed_stop and instance_state != "stopped":
         instance = get_instance_details()
         if instance is None:
             return (False, "Can't get instance details! (???)", {})
@@ -246,7 +303,7 @@ def wait_stop_instance():
         if max_attempts < 0:
             return (False, "Timeout while waiting for 'stopped' state!", {})
 
-    return (True, "Instance in 'stopped' state.", {
+    return (True, f"Instance in '{instance_state}' state.", {
         "ConversionStartInstanceState": instance
         })
 
@@ -413,10 +470,12 @@ def terminate_instance():
 
     if "SpotInstanceRequestId" in instance:
         spot_request_id = instance["SpotInstanceRequestId"]
-        logger.info(f"Cancelling Spot request {spot_request_id}...")
-        response        = ec2_client.cancel_spot_instance_requests(SpotInstanceRequestIds=[spot_request_id])
-        logger.debug(response)
-        time.sleep(2)
+        need_cancel, request = spot_request_need_cancel(spot_request_id, ["disabled"]) # We require the spot request to be in 'disabled' state.
+        if need_cancel: 
+            logger.info(f"Cancelling Spot request {spot_request_id}...")
+            response = ec2_client.cancel_spot_instance_requests(SpotInstanceRequestIds=[spot_request_id])
+            logger.debug(response)
+            time.sleep(5)
 
     response = ec2_client.terminate_instances(InstanceIds=[instance_id])
     logger.debug(response)
@@ -842,7 +901,8 @@ default_args = {
         "dynamodb_tablename": "ec2-spot-converter-state-table",
         "target_billing_model": "spot",
         "reboot_if_needed": False,
-        "delete_ami": False
+        "delete_ami": False,
+        "do_not_require_stopped_instance": False
     }
 if __name__ == '__main__':
     if "--version" in sys.argv or "-v" in sys.argv:
@@ -880,6 +940,8 @@ if __name__ == '__main__':
     parser.add_argument('-d', '--debug', help="Turn on debug traces.", 
             action='store_true', required=False, default=argparse.SUPPRESS)
     parser.add_argument('-v', '--version', help="Display tool version.", 
+            action='store_true', required=False, default=argparse.SUPPRESS)
+    parser.add_argument('--do-not-require-stopped-instance', help="Allow instance conversion while instance is in 'running' state. (NOT RECOMMENDED)", 
             action='store_true', required=False, default=argparse.SUPPRESS)
     parser.add_argument('-r', '--review-conversion-result', help="Display side-by-side conversion result. Note: REQUIRES 'VIM' EDITOR!", 
             action='store_true', required=False, default=argparse.SUPPRESS)

@@ -6,6 +6,8 @@ Elastic Inference accelerators and Elastic GPUs.
 
 It also allows replacement of existing Spot instances with new "identical" ones to update the instance type and cpu options. 
 
+It can also help to fix some Spot instance conditions ('IncorrectSpotRequestState Exception').
+
 Conversion time ranges from 2 to 5 minutes depending on the instance type.
 
 
@@ -113,6 +115,16 @@ updating the instance type (or CPU options) during the process.
 
 Specify options `--instance-type` and/or `--cpu-options`on an existing Spot instance to start conversion. 
 
+### Fix Spot instance with 'IncorrectSpotRequestState Exception'
+
+The tool is able to fix '*IncorrectSpotRequestState Exceptions*' due to the Spot request been cancelled by the user but the Spot instance is
+left running. This kind of instance may suffer some unexpected behaviors like no possibility to stop them anymore.
+
+The tool can be used to recreate a new healthy Spot instance from the problematic Spot instance.
+
+Simply call `ec2-spot-converter` with the problematic Instance Id and specify options --target-instance-type 'spot'
+**and --do-not-require-stopped-instance** (as the instance can not be stopped).
+
 # Command line usage
 
 ```shell
@@ -155,6 +167,9 @@ optional arguments:
                         'running' state.
   --reboot-if-needed    Reboot the new instance if needed.
   --delete-ami          Delete AMI at end of conversion.
+  --do-not-require-stopped-instance
+                        Allow instance conversion while instance is in
+                        'running' state. (NOT RECOMMENDED)
   -d, --debug           Turn on debug traces.
   -v, --version         Display tool version.
   -r, --review-conversion-result
