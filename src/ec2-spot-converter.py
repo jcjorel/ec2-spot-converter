@@ -203,7 +203,6 @@ def discover_instance_state():
     spot_request_state         = None
     problematic_spot_condition = False
     if instance_is_spot:
-        pdb.set_trace()
         spot_request_id = instance["SpotInstanceRequestId"]
         # Will throw an Exception if something is wrong with the Spot request
         need_cancel, spot_request = spot_request_need_cancel(spot_request_id, ["open", "active", "disabled"])
