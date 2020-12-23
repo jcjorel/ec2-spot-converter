@@ -32,7 +32,7 @@ $ ./ec2-spot-converter --generate-dynamodb-table
 Creating DynamoDB table 'ec2-spot-converter-state-table'...
 
 # Convert running On-Demand instance i-0b762953e069c7faa to Spot model
-#   This instance has 11 attached volumes, 2 ENIs and 1 EIP.
+#   This instance has 3 attached volumes, 2 ENIs and 1 EIP.
 $ ./ec2-spot-converter --stop-instance --review-conversion-result --instance-id i-0b762953e069c7faa
 [STEP 1/21] Read DynamoDB state table...
   => SUCCESS. Record 'i-0dadf8589b7ec16f6' doesn't exist yet.
