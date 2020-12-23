@@ -217,7 +217,8 @@ def discover_instance_state():
             cpu_options = None
             if "cpu_options" in args:
                 cpu_options = json.loads(args["cpu_options"])
-            if (not problematic_spot_condition and
+            if ( not args["force"] and
+                 not problematic_spot_condition and
                 ("target_instance_type" not in args or instance["InstanceType"] == args["target_instance_type"]) and 
                 (cpu_options is None or cpu_options == instance["CpuOptions"])):
                 return (False, f"Current instance {instance_id} is already a Spot instance. "
@@ -902,6 +903,7 @@ default_args = {
         "target_billing_model": "spot",
         "reboot_if_needed": False,
         "delete_ami": False,
+        "force": False,
         "do_not_require_stopped_instance": False
     }
 if __name__ == '__main__':
@@ -936,6 +938,8 @@ if __name__ == '__main__':
     parser.add_argument('--reboot-if-needed', help="Reboot the new instance if needed.", 
             action='store_true', required=False, default=argparse.SUPPRESS)
     parser.add_argument('--delete-ami', help="Delete AMI at end of conversion.", 
+            action='store_true', required=False, default=argparse.SUPPRESS)
+    parser.add_argument('-f', '--force', help="Force to start a conversion even if the tool suggests that it is not needed.", 
             action='store_true', required=False, default=argparse.SUPPRESS)
     parser.add_argument('-d', '--debug', help="Turn on debug traces.", 
             action='store_true', required=False, default=argparse.SUPPRESS)
