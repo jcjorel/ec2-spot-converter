@@ -313,6 +313,8 @@ def detach_volumes():
         })
 
 def wait_volume_detach():
+    instance    = states["ConversionStartInstanceState"]
+    instance_id = instance["InstanceId"]
     volume_ids  = states["DetachedVolumes"]
     max_attempts = 300/5
     while max_attempts and len(volume_ids):
@@ -320,6 +322,12 @@ def wait_volume_detach():
         logger.debug(response)
         max_attempts -= 1
         not_avail = [vol for vol in response["Volumes"] if vol["State"] != "available"]
+        for vol in not_avail:
+            if vol["MultiAttachEnabled"]:
+                stilled_attached = next(filter(lambda a: a["InstanceId"] == instance_id, vol["Attachments"]), None)
+                logger.info(f"Detected multi-attached volume '%s'. Taking care of this special case..." % vol["VolumeId"]) 
+                if stilled_attached is None:
+                    not_avail.remove(vol)
         if len(not_avail) == 0:
             break
         if max_attempts % 5 == 0:
