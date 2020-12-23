@@ -642,7 +642,7 @@ def reboot_if_needed():
             "Rebooted": False
             })
     if not args["reboot_if_needed"]:
-        return (True, f"It is recommend to reboot '{instance_id}'... Please specify --reboot-if-needed option next time.", {
+        return (True, f"It is recommended to reboot '{instance_id}' but --reboot-if-needed option not in the command line: Do nothing.", {
             "Rebooted": False
             })
 
