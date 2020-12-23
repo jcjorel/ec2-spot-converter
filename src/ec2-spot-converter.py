@@ -185,7 +185,7 @@ def discover_instance_state():
         response      = ec2_client.describe_spot_instance_requests(SpotInstanceRequestIds=[instance["SpotInstanceRequestId"]])
         request       = response["SpotInstanceRequests"][0]
         if request["Type"] != "persistent":
-            return (False, f"Spot instance type is different from 'persistent'! (current=%s)" % request["Type"])
+            return (False, f"Spot instance type is different from 'persistent' one! (current=%s)" % request["Type"])
 
     if billing_model == "spot":
         if instance_is_spot:
@@ -205,18 +205,18 @@ def discover_instance_state():
     # 'stopped' state management.
     instance_state = instance["State"]["Name"]
     if instance_state == "stopped":
-        return (True, "Instance already in 'stopped' state. Pre-requiste passed.", {
+        return (True, "Instance already in 'stopped' state. Pre-requisite passed.", {
             "InitialInstanceState": instance,
             "StartTime": start_time,
             "StartDate": str(datetime.now(tz=timezone.utc))
             })
 
     if "stop_instance" not in args:
-        return (False, f"Instance {instance_id} must be in 'stopped' state (current={instance_state}) ! Use --stop-instance if you want to stop it.", {})
+        return (False, f"Instance '{instance_id}' must be in 'stopped' state (current={instance_state}) ! Use --stop-instance if you want to stop it.", {})
 
     if instance_state in ["pending", "running"]:
         ec2_client.stop_instances(InstanceIds=[instance_id])
-        return (True, f"Stopping {instance_id}...", {
+        return (True, f"Stopping '{instance_id}'...", {
             "InitialInstanceState": instance,
             "StartTime": start_time,
             "StartDate": str(datetime.now(tz=timezone.utc))
@@ -700,13 +700,13 @@ steps = [
         "Name" : "discover_instance_state",
         "PrettyName" : "DiscoverInstanceState",
         "Function": discover_instance_state,
-        "Description": "Discover Instance state..."
+        "Description": "Discover instance state..."
     },
     {
         "Name" : "wait_stop_instance",
         "PrettyName" : "WaitStopInstance",
         "Function": wait_stop_instance,
-        "Description": "Wait for 'stopped' Instance state..."
+        "Description": "Wait for 'stopped' instance state..."
     },
     {
         "Name" : "tag_all_resources",
