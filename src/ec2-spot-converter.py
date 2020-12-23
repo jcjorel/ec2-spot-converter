@@ -199,8 +199,8 @@ def discover_instance_state():
 
     if billing_model == "on-demand":
         if not instance_is_spot:
-            return (False, f"Current instance {instance_id} is already a Spot instance. "
-                "Use --target-billing-model 'on-demand' if you want to convert to 'on-demand' billing model.", {}) 
+            return (False, f"Current instance {instance_id} is already an On-Demand instance. "
+                "Use --target-billing-model 'spot' if you want to convert to 'spot' billing model.", {}) 
 
     # 'stopped' state management.
     instance_state = instance["State"]["Name"]
