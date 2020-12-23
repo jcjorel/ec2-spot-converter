@@ -9,11 +9,12 @@ versionned_file="${APP_NAME}-${VERSION}"
 if [ -e "releases/${versionned_file}" ]; then
 	echo "Version ${VERSION} already exists!" ; exit 1
 fi
-echo ${VERSION} >VERSION.txt
+if [ -z "$(echo $VERSION | grep rc)" ] ; then
+	echo ${VERSION} >VERSION.txt
+fi
 sed "s/::Version::/$VERSION/g" <src/${APP_NAME}.py | 
 	sed "s/::ReleaseDate::/$(date)/g" > releases/${versionned_file}
 chmod a+x releases/${versionned_file}
-exit 1
 ln -sf ${versionned_file} releases/${APP_NAME}-latest
 git add releases/${versionned_file} releases/${APP_NAME}-latest
 git commit -m "Releasing ${APP_NAME} version $VERSION" releases/${versionned_file} releases/${APP_NAME}-latest VERSION.txt
