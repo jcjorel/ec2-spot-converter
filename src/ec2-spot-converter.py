@@ -170,17 +170,25 @@ def get_instance_details(instance_id=None):
         logger.exception(f"Failed to describe instance! {e}")
         return None
 
-def spot_request_need_cancel(spot_request_id, expected_state=[]):
+def spot_request_need_cancel(spot_request_id, expected_state=[], wait_for_state=False):
     request = None
     try:
-        response      = ec2_client.describe_spot_instance_requests(SpotInstanceRequestIds=[spot_request_id])
-        request       = response["SpotInstanceRequests"][0]
-        request_state = request["State"]
-        if request_state in ["cancelled"]:
-            return (False, request)
-        elif request_state not in expected_state:
-            raise Exception(f"Spot request {spot_request_id} is not in the expected state "
-                "(state is '{request_state}', should be among {expected_state})!")
+        max_attempts = 30
+        while max_attempts:
+            max_attempts -= 1
+            response      = ec2_client.describe_spot_instance_requests(SpotInstanceRequestIds=[spot_request_id])
+            request       = response["SpotInstanceRequests"][0]
+            request_state = request["State"]
+            if request_state in ["cancelled"]:
+                return (False, request)
+            elif wait_for_state and request_state not in expected_state:
+                logger.warning(f"Waiting for Spot Request state be one of {expected_state}... (current state={request_state})") 
+                time.sleep(10)
+                continue
+            elif request_state not in expected_state:
+                raise Exception(f"Spot request {spot_request_id} is not in the expected state "
+                    f"(state is '{request_state}', should be among {expected_state})!")
+            break
     except ClientError as e:
         if e.response['Error']['Code'] == 'InvalidSpotInstanceRequestID.NotFound':
             return (False, request)
@@ -221,7 +229,8 @@ def discover_instance_state():
                 ("target_instance_type" not in args or instance["InstanceType"] == args["target_instance_type"]) and 
                 (cpu_options is None or cpu_options == instance["CpuOptions"])):
                 return (False, f"Current instance {instance_id} is already a Spot instance. "
-                    "Use --target-billing-model 'on-demand' if you want to convert to 'on-demand' billing model.", {}) 
+                    "Use --target-billing-model 'on-demand' if you want to convert to 'on-demand' billing model or "
+                    "--force to convert this Spot instance to a new one.", {}) 
 
     if billing_model == "on-demand":
         if not instance_is_spot:
@@ -232,7 +241,7 @@ def discover_instance_state():
     if problematic_spot_condition:
         logger.warning(f"/!\ WARNING /!\ Spot Instance {instance_id} is linked to an invalid Spot Request '{spot_request_id}'! "
                 "This situation is known to create issues like difficulty to stop the instance. "
-                "If you encouter an IncorrectSpotRequestState Exception while attempting to stop the instance, please "
+                "If you encounter an IncorrectSpotRequestState Exception while attempting to stop the instance, please "
                 "consider converting the running instance AS-IS with '--do-not-require-stopped-instance' option. "
                 "[In order to avoid data consistency issues on the host filesystems either set all filesystems read-only "
                 "directly in the host + unmount all possible volumes, or 'SW halt' the system (See your Operating System manual for details)]")
@@ -470,7 +479,7 @@ def terminate_instance():
 
     if "SpotInstanceRequestId" in instance:
         spot_request_id = instance["SpotInstanceRequestId"]
-        need_cancel, request = spot_request_need_cancel(spot_request_id, ["disabled"]) # We require the spot request to be in 'disabled' state.
+        need_cancel, request = spot_request_need_cancel(spot_request_id, ["disabled"], wait_for_state=True) # We require the spot request to be in 'disabled' state.
         if need_cancel: 
             logger.info(f"Cancelling Spot request {spot_request_id}...")
             response = ec2_client.cancel_spot_instance_requests(SpotInstanceRequestIds=[spot_request_id])
@@ -765,7 +774,7 @@ steps = [
         "Name" : "wait_stop_instance",
         "PrettyName" : "WaitStopInstance",
         "Function": wait_stop_instance,
-        "Description": "Wait for 'stopped' instance state..."
+        "Description": "Wait for expected instance state..."
     },
     {
         "Name" : "tag_all_resources",
