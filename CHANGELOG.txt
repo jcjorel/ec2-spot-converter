@@ -1,5 +1,6 @@
-v0.4.1:
+v0.4.2:
 - (Bug/Major) Handling of --max-spot-price was broken. Fixed.
+- Deprecated v0.4.1 as unuseable.
 
 v0.4.0:
 - (Improvment/Minor) Added EC2 Termination protection API sanity check: Do not start a conversion if instance termination protection is set.
