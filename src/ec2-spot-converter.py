@@ -33,7 +33,10 @@ def configure_logging():
     logger.propagate = False
     ch = logging.StreamHandler()
     ch.setLevel(LOG_LEVEL)
-    logger_formatter = logging.Formatter("[%(levelname)s] %(asctime)s %(filename)s:%(lineno)d - %(message)s")
+    if LOG_LEVEL == logging.DEBUG:
+        logger_formatter = logging.Formatter("[%(levelname)s] %(asctime)s %(filename)s:%(lineno)d - %(message)s")
+    else:
+        logger_formatter = logging.Formatter("[%(levelname)s] %(asctime)s %(filename)s - %(message)s")
     ch.setFormatter(logger_formatter)
     logger.addHandler(ch)
 
