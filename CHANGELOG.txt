@@ -1,6 +1,7 @@
 v0.4.0:
 - (Improvment/Minor) Added EC2 Termination protection API sanity check: Do not start a conversion if instance termination protection is set.
 - (Improvment/Minor) Added --ignore-userdata to avoid copy of userdata in the converted instance.
+- (Improvment/Minor) Ensure that the original instance is in 'terminated' state before to create the converted one.
 
 v0.3.0:
 - (Improvment/Major) Added paranoid sanity checks about Spot Requests status. Added the ability to fix 'IncorrectSpotRequestState Exceptions'.

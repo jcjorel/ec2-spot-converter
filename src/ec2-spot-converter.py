@@ -185,7 +185,7 @@ def spot_request_need_cancel(spot_request_id, expected_state=[], wait_for_state=
             if request_state in ["cancelled"]:
                 return (False, request)
             elif wait_for_state and request_state not in expected_state:
-                logger.warning(f"Waiting for Spot Request state be one of {expected_state}... (current state={request_state})") 
+                logger.info(f"Waiting for Spot Request state be one of {expected_state}... (current state={request_state})") 
                 time.sleep(10)
                 continue
             elif request_state not in expected_state:
@@ -502,7 +502,8 @@ def terminate_instance():
 
     if "SpotInstanceRequestId" in instance:
         spot_request_id = instance["SpotInstanceRequestId"]
-        need_cancel, request = spot_request_need_cancel(spot_request_id, ["disabled"], wait_for_state=True) # We require the spot request to be in 'disabled' state.
+        # We require the spot request to be in 'disabled' or 'active' state.
+        need_cancel, request = spot_request_need_cancel(spot_request_id, ["disabled", "active"], wait_for_state=True)
         if need_cancel: 
             logger.info(f"Cancelling Spot request {spot_request_id}...")
             response = ec2_client.cancel_spot_instance_requests(SpotInstanceRequestIds=[spot_request_id])
@@ -524,12 +525,24 @@ def wait_resource_release():
         not_avail = [vol for vol in response["NetworkInterfaces"] if vol["Status"] != "available"]
         if len(not_avail) == 0:
             break
-        if max_attempts % 5 == 0:
-            logger.info("Waiting for detached ENIs to become 'available'...")
+        logger.info("Waiting for detached ENIs to become 'available'...")
         time.sleep(5)
     if max_attempts == 0:
         return (False, f"Not all ENIs where 'available' before timeout : {eni_ids}.", {})
-    time.sleep(2) # Superstition... Without proofs, we BELIEVE that it is good to not rush create the new instance...
+
+    # Wait for terminated instance status
+    max_attempts = 300/5
+    while max_attempts:
+        max_attempts -= 1
+        instance      = get_instance_details()
+        if instance["State"]["Name"] == "terminated":
+            break
+        logger.info("Waiting for instance 'terminated' state...")
+        time.sleep(5)
+    if max_attempts == 0:
+        return (False, f"Instance took too long to go to 'terminated' state (???).", {})
+
+    time.sleep(2) # Superstition... Without proofs, we BELIEVE that it is good to not rush to create the new instance...
     return (True, f"All resources released : {eni_ids}.", {})
 
 def create_new_instance():
