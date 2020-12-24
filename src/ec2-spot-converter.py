@@ -210,6 +210,13 @@ def discover_instance_state():
     logger.debug(pprint(instance))
 
     # Sanity check
+    response               = ec2_client.describe_instance_attribute(Attribute='disableApiTermination', InstanceId=instance_id)
+    logger.debug(response)
+    termination_protection = response["DisableApiTermination"]["Value"]
+    if termination_protection:
+        return (False, f"Can't convert instance {instance_id}! Termination protection activated! "
+                "Please go to AWS console and disable termination protection attribute on this instance.", {})
+
     billing_model              = args["target_billing_model"]
     instance_is_spot           = "SpotInstanceRequestId" in instance
     spot_request               = {}
@@ -602,7 +609,7 @@ def create_new_instance():
         launch_specifications["IamInstanceProfile"] = {
             "Arn": instance["IamInstanceProfile"]["Arn"]
             }
-    if "UserData" in instance:
+    if not args["ignore_userdata"] and "UserData" in instance:
         launch_specifications["UserData"] = instance["UserData"] 
     #if "ClientToken" in instance and instance["ClientToken"] != "":
     #    launch_specifications["ClientToken"] = instance["ClientToken"]
@@ -938,6 +945,7 @@ default_args = {
         "reboot_if_needed": False,
         "delete_ami": False,
         "force": False,
+        "ignore_userdata": False,
         "do_not_require_stopped_instance": False
     }
 if __name__ == '__main__':
@@ -958,6 +966,8 @@ if __name__ == '__main__':
             "to change Instance type. "
             "Default: <original_instance_type>", 
             type=str, required=False, default=argparse.SUPPRESS)
+    parser.add_argument('--ignore-userdata', help="Do not copy 'UserData' on converted instance.",
+            action='store_true', required=False, default=argparse.SUPPRESS)
     parser.add_argument('--cpu-options', help="Instance CPU Options JSON structure. "
             'Format: {"CoreCount":123,"ThreadsPerCore":123}.',
             type=str, required=False, default=argparse.SUPPRESS)
