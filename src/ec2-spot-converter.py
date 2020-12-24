@@ -209,6 +209,8 @@ def discover_instance_state():
         raise Exception(f"Can't describe instance '{instance_id}'!")
     logger.debug(pprint(instance))
 
+    set_state("ToolVersion", VERSION)
+
     # Sanity check
     response               = ec2_client.describe_instance_attribute(Attribute='disableApiTermination', InstanceId=instance_id)
     logger.debug(response)
@@ -649,7 +651,7 @@ def create_new_instance():
     if "CpuOptions" in instance:
         if "target_instance_type" in args:
             if "cpu_options" not in args:
-                logger.info("--target-instance-type specified: Do not inherit 'CPU Options' from original instance and "
+                logger.warning("--target-instance-type specified: Do not inherit 'CPU Options' from original instance and "
                     "use instance default instead. "
                     "Specify --cpu-options to define new 'CPU Options' settings.")
         else:
