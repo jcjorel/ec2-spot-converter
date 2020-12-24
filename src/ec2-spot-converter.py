@@ -648,9 +648,10 @@ def create_new_instance():
             'SpotOptions': {
                 'SpotInstanceType': 'persistent',
                 'InstanceInterruptionBehavior': 'stop',
-                'MaxPrice': spot_request["SpotPrice"]
                 },
             }
+        if spot_request is not None and "SpotPrice" in spot_request:
+            launch_specifications["InstanceMarketOptions"]["SpotOptions"]["MaxPrice"] = spot_request["SpotPrice"]
         if "max_spot_price" in args:
             logger.info("Setting maximum Spot price to '%s'." % args["max_spot_price"])
             launch_specifications["InstanceMarketOptions"]["SpotOptions"]["MaxPrice"] = str(args["max_spot_price"])
