@@ -232,6 +232,9 @@ def discover_instance_state():
         problematic_spot_condition = spot_request is None or spot_request["State"] == "cancelled"
 
     if billing_model == "spot":
+        if "max_spot_price" in args and args["max_spot_price"] <= 0.0:
+            return (False, f"--max-spot-price set to a value <= 0.0", {})
+
         if instance_is_spot:
             cpu_options = None
             if "cpu_options" in args:
@@ -550,6 +553,7 @@ def create_new_instance():
     kepts_blks   = states["VolumesInAMI"]
     ami_id       = states["ImageId"]
     elastic_gpus = states["ElasticGPUs"]
+    spot_request = states["SpotRequest"]
 
     ifaces = []
     for eni in instance["NetworkInterfaces"]:
@@ -643,11 +647,13 @@ def create_new_instance():
             'MarketType': 'spot',
             'SpotOptions': {
                 'SpotInstanceType': 'persistent',
-                'InstanceInterruptionBehavior': 'stop'
-                }
+                'InstanceInterruptionBehavior': 'stop',
+                'MaxPrice': spot_request["SpotPrice"]
+                },
             }
         if "max_spot_price" in args:
-            launch_specifications["InstanceMarketOptions"]["MaxPrice"] = args[max_spot_price]
+            logger.info("Setting maximum Spot price to '%s'." % args["max_spot_price"])
+            launch_specifications["InstanceMarketOptions"]["SpotOptions"]["MaxPrice"] = str(args["max_spot_price"])
 
     response = ec2_client.run_instances(**launch_specifications)
     logger.debug(response)
@@ -985,7 +991,7 @@ if __name__ == '__main__':
             'Format: {"CoreCount":123,"ThreadsPerCore":123}.',
             type=str, required=False, default=argparse.SUPPRESS)
     parser.add_argument('--max-spot-price', help="Maximum hourly price for Spot instance target.", 
-            type=str, required=False, default=argparse.SUPPRESS)
+            type=float, required=False, default=argparse.SUPPRESS)
     parser.add_argument('-s', '--stop-instance', help="Stop instance instead of failing because it is in 'running' state.",
             action='store_true', required=False, default=argparse.SUPPRESS)
     parser.add_argument('--reboot-if-needed', help="Reboot the new instance if needed.", 

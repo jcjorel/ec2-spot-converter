@@ -1,3 +1,6 @@
+v0.4.1:
+- (Bug/Major) Handling of --max-spot-price was broken. Fixed.
+
 v0.4.0:
 - (Improvment/Minor) Added EC2 Termination protection API sanity check: Do not start a conversion if instance termination protection is set.
 - (Improvment/Minor) Added --ignore-userdata to avoid copy of userdata in the converted instance.
