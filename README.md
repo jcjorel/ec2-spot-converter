@@ -177,14 +177,15 @@ optional arguments:
                         'VIM' EDITOR!
 ```
 
+> At the end of a conversion, the tool can replay as many times as wished former conversion results specifying the original instance id: It will display again all execution steps and it can be useful to review again the conversion result (VIm Diff window) of a previous run. The `--delete-ami` option can also be added in a subsequent call to suppress the AMI and associated snapshots built by a previous tool execution.
+
+
 ## Resilience 
 
 The tool is designed with maximum safety in mind: All conversion states are persisted in a DynamoDB table and, if the tool is interrupted or
 encounter an error, it should be restartable where it went interrupted without special user action. In the unexpected event of a major bug and outcome, 
 consult the DynamoDB line corresponding to your instance Id: This line contains JSON states of your original instance and other information
 allowing to reconstruct the original instance by hand.
-
-> At the end of a conversion, the tool can be replayed as many times as wished specifying the original instance id: It will display again all execution steps and it can also be useful to review again the conversion result (VIm Diff window) of a previous run. The `--delete-ami` option can also be added in a subsequent call to suppress the AMI and associated snapshots built by a previous tool execution.
 
 ## Contributing
 

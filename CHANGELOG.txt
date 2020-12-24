@@ -1,3 +1,8 @@
+v0.5.0:
+- (Improvment/Minor) Added more sanity checks about --cpu-options user input.
+- (Improvment/Minor) Added --ignore-hibernation-options to not propagate hibernation options if needed by user.
+- (Bug/Minor) Do not inherit original instance Spot price when --instance-type is specified but use On-Demand price instead.
+
 v0.4.2:
 - (Bug/Major) Handling of --max-spot-price was broken. Fixed.
 - Deprecated v0.4.1 as unuseable.

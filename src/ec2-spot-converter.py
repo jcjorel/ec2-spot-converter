@@ -217,6 +217,13 @@ def discover_instance_state():
         return (False, f"Can't convert instance {instance_id}! Termination protection activated! "
                 "Please go to AWS console and disable termination protection attribute on this instance.", {})
 
+    if "cpu_options" in args:
+        try:
+            cpu_options = json.loads(args["cpu_options"])
+            logger.info("CPU Options specified: CoreCount=%s, ThreadsPerCore=%s" % (cpu_options["CoreCount"], cpu_options["ThreadsPerCore"]))
+        except Exception as e:
+            return (False, f"Failed to process '--cpu-options'! : {e}", {})
+
     billing_model              = args["target_billing_model"]
     instance_is_spot           = "SpotInstanceRequestId" in instance
     spot_request               = {}
@@ -593,7 +600,6 @@ def create_new_instance():
                 'Enabled': instance["Monitoring"]["State"] in ["enabled", "pending"],
             },
             'CapacityReservationSpecification': instance["CapacityReservationSpecification"],
-            'HibernationOptions': instance["HibernationOptions"],
             'NetworkInterfaces': ifaces,
             'Placement': {
                 'AvailabilityZone': instance["Placement"]["AvailabilityZone"],
@@ -602,6 +608,13 @@ def create_new_instance():
             'MaxCount': 1,
             'MinCount': 1
         }
+
+    if "HibernationOptions" in instance:
+        if args["ignore_hibernation_options"]:
+            logger.info("--ignore-hibernation-options set. Do not copy 'HibernationOptions' in the converted instance.")
+        else:
+            launch_specifications['HibernationOptions'] = instance["HibernationOptions"]
+
     if "InstanceInitiatedShutdownBehavior" in instance:
         launch_specifications['InstanceInitiatedShutdownBehavior']: instance["InstanceInitiatedShutdownBehavior"]
 
@@ -622,26 +635,41 @@ def create_new_instance():
                 "Count": len(instance["ElasticInferenceAcceleratorAssociations"])
             }
 
+    # IamInstanceProfile
     if "IamInstanceProfile" in instance:
         launch_specifications["IamInstanceProfile"] = {
             "Arn": instance["IamInstanceProfile"]["Arn"]
             }
+
+    # UserData
     if not args["ignore_userdata"] and "UserData" in instance:
         launch_specifications["UserData"] = instance["UserData"] 
-    #if "ClientToken" in instance and instance["ClientToken"] != "":
-    #    launch_specifications["ClientToken"] = instance["ClientToken"]
-    if "CpuOptions" in instance and not "target_instance_type" in args:
-        # Preserve CpuOptions only if we do not force the instance type
-        launch_specifications["CpuOptions"] = instance["CpuOptions"]
+
+    # CPU Options
+    if "CpuOptions" in instance:
+        if "target_instance_type" in args:
+            if "cpu_options" not in args:
+                logger.info("--target-instance-type specified: Do not inherit 'CPU Options' from original instance and "
+                    "use instance default instead. "
+                    "Specify --cpu-options to define new 'CPU Options' settings.")
+        else:
+            # Preserve CpuOptions only if we do not force the instance type
+            launch_specifications["CpuOptions"] = instance["CpuOptions"]
     if "cpu_options" in args:
         launch_specifications["CpuOptions"] = json.loads(args["cpu_options"])
+
+    # CPU Credits
     if "CreditSpecification" in instance:
         launch_specifications["CreditSpecification"] = instance["CreditSpecification"]
+
+    # Tags
     if "Tags" in instance:
         launch_specifications["TagSpecifications"] = [{
             "ResourceType": "instance",
             "Tags": instance["Tags"]
             }]
+
+    # Spot model
     if args["target_billing_model"] == "spot":
         launch_specifications["InstanceMarketOptions"] = {
             'MarketType': 'spot',
@@ -651,7 +679,13 @@ def create_new_instance():
                 },
             }
         if spot_request is not None and "SpotPrice" in spot_request:
-            launch_specifications["InstanceMarketOptions"]["SpotOptions"]["MaxPrice"] = spot_request["SpotPrice"]
+            if "target_instance_type" in args:
+                if "max_spot_price" not in args: 
+                    logger.warning("--target-instance-type specified: Do not inherit Spot Price from original instance "
+                            "and use On-Demand price instead. "
+                            "Please specify --max-spot-price option to set a precise bid.")
+            else:
+                launch_specifications["InstanceMarketOptions"]["SpotOptions"]["MaxPrice"] = spot_request["SpotPrice"]
         if "max_spot_price" in args:
             logger.info("Setting maximum Spot price to '%s'." % args["max_spot_price"])
             launch_specifications["InstanceMarketOptions"]["SpotOptions"]["MaxPrice"] = str(args["max_spot_price"])
@@ -966,6 +1000,7 @@ default_args = {
         "delete_ami": False,
         "force": False,
         "ignore_userdata": False,
+        "ignore_hibernation_options": False,
         "do_not_require_stopped_instance": False
     }
 if __name__ == '__main__':
@@ -987,6 +1022,8 @@ if __name__ == '__main__':
             "Default: <original_instance_type>", 
             type=str, required=False, default=argparse.SUPPRESS)
     parser.add_argument('--ignore-userdata', help="Do not copy 'UserData' on converted instance.",
+            action='store_true', required=False, default=argparse.SUPPRESS)
+    parser.add_argument('--ignore-hibernation-options', help="Do not copy 'HibernationOptions' on converted instance.",
             action='store_true', required=False, default=argparse.SUPPRESS)
     parser.add_argument('--cpu-options', help="Instance CPU Options JSON structure. "
             'Format: {"CoreCount":123,"ThreadsPerCore":123}.',
