@@ -1,3 +1,8 @@
+v0.5.1:
+- (Bug/Major) Ensurie that the Root device is always part of the generated AMI
+- (Bug/Major) Ensure that all volume types are correctly handled (especially 'st1', 'sc1', and 'standard' that were broken)
+- (Bug/Minor) Ensure that BlockDeviceMappings are sorted in the same way in instance details (review conversion result window)
+
 v0.5.0:
 - (Improvment/Minor) Added more sanity checks about --cpu-options user input.
 - (Improvment/Minor) Added --ignore-hibernation-options to not propagate hibernation options if needed by user.

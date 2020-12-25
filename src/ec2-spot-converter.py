@@ -369,6 +369,7 @@ def get_volume_details():
 def detach_volumes():
     instance    = states["ConversionStartInstanceState"]
     vol_details = states["VolumeDetails"]
+    root_device = instance["RootDeviceName"]
     instance_id = instance["InstanceId"]
     detached_ids= []
     kept_blks   = []
@@ -376,11 +377,8 @@ def detach_volumes():
         vol = blk["Ebs"]["VolumeId"]
         if vol in detached_ids:
             continue
-        if not bool(blk["Ebs"]["DeleteOnTermination"]):
-            logger.info(f"Detaching volume {vol}...")
-            response = ec2_client.detach_volume(Device=blk["DeviceName"], InstanceId=instance_id, VolumeId=vol)
-            detached_ids.append(vol)
-        else:
+        if root_device == blk["DeviceName"] or bool(blk["Ebs"]["DeleteOnTermination"]):
+            # We always keep the Root device and all volumes with DeleteOnTermination=True as part of the AMI created.
             vol_detail = next(filter(lambda v: v["VolumeId"] == vol, vol_details), None)
             b = {
                 "DeviceName": blk["DeviceName"],
@@ -397,6 +395,12 @@ def detach_volumes():
                 b["Ebs"]["Encrypted"] = True
                 b["Ebs"]["KmsKeyId"] = vol_detail["KmsKeyId"]
             kept_blks.append(b)
+        else:
+            # Detach all volumes that do not share the same lifecycle than the instance.
+            logger.info(f"Detaching volume {vol}...")
+            response = ec2_client.detach_volume(Device=blk["DeviceName"], InstanceId=instance_id, VolumeId=vol)
+            detached_ids.append(vol)
+
     return (True, f"Detached volumes {detached_ids}.", {
         "DetachedVolumes": detached_ids,
         "VolumesInAMI": kept_blks,
@@ -585,8 +589,9 @@ def create_new_instance():
             if "VolumeType" in volume: 
                 voltype = volume["VolumeType"]
                 b["Ebs"]["VolumeType"] = voltype
-                if "Iops" in volume and voltype != "gp2":       b["Ebs"]["Iops"]       = volume["Iops"]
-                if "Throughput" in volume and voltype != "gp2": b["Ebs"]["Throughput"] = volume["Throughput"]
+                if voltype not in ["gp2", "st1", "sc1", "standard"]:
+                    if "Iops" in volume:       b["Ebs"]["Iops"]       = volume["Iops"]
+                    if "Throughput" in volume: b["Ebs"]["Throughput"] = volume["Throughput"]
             if "Encrypted"  in volume: b["Ebs"]["Encrypted"]  = volume["Encrypted"]
             if "KmsKeyId"   in volume: b["Ebs"]["KmsKeyId"]   = volume["KmsKeyId"]
         block_devs.append(b)
@@ -863,7 +868,7 @@ steps = [
         "Name" : "wait_stop_instance",
         "PrettyName" : "WaitStopInstance",
         "Function": wait_stop_instance,
-        "Description": "Wait for expected instance state..."
+        "Description": "Wait for expected instance state (and stop instance if requested by --stop-instance)..."
     },
     {
         "Name" : "tag_all_resources",
@@ -978,16 +983,21 @@ steps = [
 
 def review_conversion_results():
     o_file = tempfile.NamedTemporaryFile(prefix="original_instance-", suffix=".json", buffering=0)   
-    initial_instance_state = states["InitialInstanceState"]
-    initial_instance_state["NetworkInterfaces"] = sorted(initial_instance_state["NetworkInterfaces"], 
+    initial_instance_state                        = states["InitialInstanceState"]
+    # Ensure the details are sorted the same way
+    initial_instance_state["NetworkInterfaces"]   = sorted(initial_instance_state["NetworkInterfaces"], 
             key=lambda i: int(i["Attachment"]["DeviceIndex"]))
-    initial_instance_state["Tags"] = sorted(initial_instance_state["Tags"], key=lambda t: t["Key"])
+    initial_instance_state["Tags"]                = sorted(initial_instance_state["Tags"], key=lambda t: t["Key"])
+    initial_instance_state["BlockDeviceMappings"] = sorted(initial_instance_state["BlockDeviceMappings"], key=lambda t: t["DeviceName"])
     o_file.write(bytes(pprint(initial_instance_state), "utf-8"))
+
     n_file = tempfile.NamedTemporaryFile(prefix="new_instance-", suffix=".json", buffering=0)   
-    final_instance_state   = states["FinalInstanceState"]
-    final_instance_state["NetworkInterfaces"] = sorted(final_instance_state["NetworkInterfaces"], 
+    final_instance_state                        = states["FinalInstanceState"]
+    # Ensure the details are sorted the same way
+    final_instance_state["NetworkInterfaces"]   = sorted(final_instance_state["NetworkInterfaces"], 
             key=lambda i: int(i["Attachment"]["DeviceIndex"]))
-    final_instance_state["Tags"] = sorted(final_instance_state["Tags"], key=lambda t: t["Key"])
+    final_instance_state["Tags"]                = sorted(final_instance_state["Tags"], key=lambda t: t["Key"])
+    final_instance_state["BlockDeviceMappings"] = sorted(final_instance_state["BlockDeviceMappings"], key=lambda t: t["DeviceName"])
     n_file.write(bytes(pprint(final_instance_state), "utf-8"))
     os.system("vim -c ':syntax off' -d %s %s" % (o_file.name, n_file.name))
     o_file.close()
