@@ -371,6 +371,7 @@ def detach_volumes():
     vol_details = states["VolumeDetails"]
     root_device = instance["RootDeviceName"]
     instance_id = instance["InstanceId"]
+
     detached_ids= []
     kept_blks   = []
     for blk in instance["BlockDeviceMappings"]:
@@ -397,8 +398,20 @@ def detach_volumes():
             kept_blks.append(b)
         else:
             # Detach all volumes that do not share the same lifecycle than the instance.
-            logger.info(f"Detaching volume {vol}...")
-            response = ec2_client.detach_volume(Device=blk["DeviceName"], InstanceId=instance_id, VolumeId=vol)
+            response         = ec2_client.describe_volumes(VolumeIds=[vol])
+            vol_detail       = response["Volumes"][0]
+            stilled_attached = next(filter(lambda a: a["InstanceId"] == instance_id, vol_detail["Attachments"]), None) 
+            volume_state     = vol_detail["State"]
+            multi_attached   = vol_detail["MultiAttachEnabled"]
+            if volume_state == "in-use" and stilled_attached is not None:
+                logger.info(f"Detaching volume {vol}... (volume state='{volume_state}', multi-attached='{multi_attached}')")
+                response = ec2_client.detach_volume(Device=blk["DeviceName"], InstanceId=instance_id, VolumeId=vol)
+            else:
+                # Can happen if the tool has been interrupted and is replayed to redo the step.
+                if stilled_attached is None:
+                    logger.info(f"Volume {vol} is no more attached to instance. Do nothing... (volume state='{volume_state}', multi-attached='{multi_attached}')")
+                else:
+                    logger.info(f"Volume {vol} is not in 'in-use' state. Do nothing... (volume state='{volume_state}', multi-attached='{multi_attached}')")
             detached_ids.append(vol)
 
     return (True, f"Detached volumes {detached_ids}.", {
@@ -568,7 +581,43 @@ def create_new_instance():
     elastic_gpus = states["ElasticGPUs"]
     spot_request = states["SpotRequest"]
 
-    ifaces = []
+    # Sanity check: In case of step replay, we may have already started a new instance but did not have the time 
+    #   to persist the next state machine step. We control here if the network interfaces are not already reconnected
+    #   to a new instance giving us a good clue of what is the new instance id.
+    eni_ids            = [ eni["NetworkInterfaceId"] for eni in instance["NetworkInterfaces"] ] 
+    response           = ec2_client.describe_network_interfaces(NetworkInterfaceIds=eni_ids)
+    eni_attached_ids   = []
+    eni_instance_ids   = []
+    for eni in response["NetworkInterfaces"]:
+        eni_id     = eni["NetworkInterfaceId"]
+        eni_status = eni["Status"]
+        if eni_status == "in-use":
+            eni_attached_ids.append(eni_id)
+            if not "InstanceId" in eni["Attachment"]:
+                return (False, f"ENI {eni_id} attached to something else than an EC2 instance!!! (How is it possible??)", {})
+            eni_instance_id = eni["Attachment"]["InstanceId"]
+            if eni_instance_id not in eni_instance_ids:
+                eni_instance_ids.append(eni_instance_id)
+        elif eni_status == "available":
+            # Just fine! :-)
+            continue
+        else:
+            return (False, f"ENI {eni_id} is in unexpected state (eni state={eni_status})!", {})
+    # Guess that a previous step execution succeeded to launch a new instance
+    if len(eni_instance_ids) > 0:
+        if len(eni_attached_ids) == len(eni_ids) and len(eni_instance_ids) == 1:
+            new_instance_id = eni_instance_ids[0]
+            # Beyond the reasonnable doubt... A new instance succeeded to attach the interface(s).
+            return (True, f"Recovered new instance '{new_instance_id}' from previous execution!", {
+                "NewInstanceId": new_instance_id,
+                })
+        else:
+            return (False, f"Unconsistencies detected about ENI attachements! (ENI already attached: '{eni_attached_ids}', "
+                    f"ENI instance Ids:  '{eni_instance_ids}'", {})
+
+
+    # Prepare the run_instances() parameters.
+    ifaces       = []
     for eni in instance["NetworkInterfaces"]:
         ifaces.append({
             'DeviceIndex': eni["Attachment"]["DeviceIndex"],
@@ -733,7 +782,7 @@ def reattach_volumes():
     attached_ids  = []
     for vol in volume_ids:
         if next(filter(lambda v: v["Ebs"]["VolumeId"] == vol, current_blks), None) is not None:
-            continue # Already attached. May happen when forcibly replying the step.
+            continue # Already attached. May happen when forcibly replaying the step.
         if vol in attached_ids:
             continue
         blk         = next(filter(lambda v: v["Ebs"]["VolumeId"] == vol, orig_instance["BlockDeviceMappings"]), None)
