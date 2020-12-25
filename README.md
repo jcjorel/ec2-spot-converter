@@ -6,7 +6,7 @@ Elastic Inference accelerators and Elastic GPUs.
 
 It also allows replacement of existing Spot instances with new "identical" ones to update the instance type and cpu options. 
 
-It can also help to fix some Spot instance conditions ('IncorrectSpotRequestState Exception').
+It can also help to fix some Spot instance conditions (Ex: *'IncorrectSpotRequestState Exception'*).
 
 Conversion time ranges from 2 to 5 minutes depending on the instance type.
 
