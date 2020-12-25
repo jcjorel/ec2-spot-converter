@@ -862,13 +862,13 @@ steps = [
         "Name" : "discover_instance_state",
         "PrettyName" : "DiscoverInstanceState",
         "Function": discover_instance_state,
-        "Description": "Discover instance state..."
+        "Description": "Discover instance state (and stop instance if requested by --stop-instance)..."
     },
     {
         "Name" : "wait_stop_instance",
         "PrettyName" : "WaitStopInstance",
         "Function": wait_stop_instance,
-        "Description": "Wait for expected instance state (and stop instance if requested by --stop-instance)..."
+        "Description": "Wait for expected instance state..."
     },
     {
         "Name" : "tag_all_resources",
