@@ -185,7 +185,7 @@ optional arguments:
 The tool is designed with maximum safety of stateful data and operations in mind: All conversion states are persisted in a DynamoDB table and, if the tool is interrupted or
 encounters an error, it should be restartable where it went interrupted without special user action. In the unexpected (and unlikely) event of a major bug and bad outcome, 
 please consult the DynamoDB line corresponding to your instance Id: This line contains JSON states of your original instance and other information (AMI, Interfaces...)
-allowing to reconstruct the original instance by hand.
+allowing to reconstruct the original instance by hand. **In such event, please also create a GitHub issue with precise description of the encountered problem!**
 
 ## Contributing
 
