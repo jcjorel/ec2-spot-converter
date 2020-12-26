@@ -1,3 +1,6 @@
+v0.6.1:
+- (Improvment/Minor) When replaying the 'create_ami' step, no more ask from user remediation: Do it automatically.
+
 v0.6.0:
 - (Improvment/Major) Added more operational safety sanity checks for increased relisiency to interrupted operations in step 'create_new_instance'.
 

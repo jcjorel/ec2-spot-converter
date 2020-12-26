@@ -456,8 +456,9 @@ def create_ami():
         response= ec2_client.create_image(Name=image_name, InstanceId=instance_id, BlockDeviceMappings=kepts_blks)
         logger.debug(response)
     except ClientError as e:
-        if e.response['Error']['Code'] == 'InvalidAMIName.Duplicate':
-            return (False, f"Image '{image_name}' already exists! Please delete it and restart the tool...", {})
+        if e.response['Error']['Code'] != 'InvalidAMIName.Duplicate':
+            raise e
+        # Fall through when the AMI is already under creation. Could happen in case of step replay after tool interuption
 
     response = ec2_client.describe_images(Filters=[{
         'Name': 'name',
