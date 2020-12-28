@@ -1,6 +1,6 @@
 # ec2-spot-converter
 
-This tool converts existing EC2 instances back and forth between On-Demand and 'persistent' Spot billing models while preserving
+This tool converts existing AWS EC2 instances back and forth between On-Demand and 'persistent' Spot billing models while preserving
 instance attributes (Launch configuration, Tags..), network attributes (existing Private IP addresses, Elastic IP), storage (Volumes),
 Elastic Inference accelerators and Elastic GPUs.
 
@@ -110,14 +110,14 @@ The operation is similar to the Spot model conversion with the difference that t
 ### Convert a Spot instance to Spot model to change the instance type and/or CPU Options
 
 `ec2-spot-converter`tool can be used to replace a Spot instance by another one just changing the instance type. This operation is not 
-yey possible "in-place" through an AWS EC2 API so the tool will terminate and replace the Spot instance preserving all attributes but
+yet possible "in-place" through an AWS EC2 API so the tool will terminate and replace the Spot instance preserving all attributes but
 updating the instance type (or CPU options) during the process.
 
 Specify options `--instance-type` and/or `--cpu-options`on an existing Spot instance to start conversion. 
 
 ### Fix Spot instance with 'IncorrectSpotRequestState Exception'
 
-The tool is able to fix '*IncorrectSpotRequestState Exceptions*' due to the Spot request been cancelled by the user but the Spot instance is
+The tool is able to fix '*IncorrectSpotRequestState Exceptions*' due to the Spot request been cancelled by the user but the Spot instance was
 left running. This kind of instance may suffer some unexpected behaviors like no possibility to stop them anymore.
 
 The tool can be used to recreate a new healthy Spot instance from the problematic Spot instance.
