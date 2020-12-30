@@ -430,7 +430,7 @@ def wait_volume_detach():
         logger.debug(response)
         max_attempts -= 1
         not_avail = [vol for vol in response["Volumes"] if vol["State"] != "available"]
-        for vol in not_avail:
+        for vol in not_avail.copy():
             if vol["MultiAttachEnabled"]:
                 stilled_attached = next(filter(lambda a: a["InstanceId"] == instance_id, vol["Attachments"]), None)
                 logger.info(f"Detected multi-attached volume '%s'. Taking care of this special case..." % vol["VolumeId"]) 
@@ -509,7 +509,7 @@ def wait_ami():
         max_attempts -= 1
     if max_attempts == 0:
         return (False, f"AMI {ami_id} creation timeout!", {})
-    return (True, f"AMI {ami_id} is ready..", {})
+    return (True, f"AMI {ami_id} is ready.", {})
 
 def instance_state_checkpoint():
     instance     = states["WithoutExtraVolumesInstanceState"]
@@ -521,7 +521,7 @@ def instance_state_checkpoint():
             gpu_ids.append(gpu_id)
         response = ec2_client.describe_elastic_gpus(ElasticGpuIds=gpu_ids)
         elastic_gpus = response["ElasticGpuSet"]
-    return (True, "Checkpointed instance state...", {
+    return (True, "Checkpointed instance state.", {
         "InstanceStateCheckpoint": get_instance_details(),
         "ElasticGPUs": elastic_gpus
         })
@@ -834,7 +834,7 @@ def manage_elastic_ip():
                     )
                 reassociated_eips.append(eip["PublicIp"])
                 logger.debug(response)
-    return (True, f"Reassociated EIPs '{reassociated_eips}'...", {})
+    return (True, f"Reassociated EIPs '{reassociated_eips}'.", {})
 
 def reboot_if_needed():
     instance_id   = states["NewInstanceId"]
