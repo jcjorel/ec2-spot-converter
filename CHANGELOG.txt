@@ -1,3 +1,6 @@
+v0.6.2:
+- (Bug/Major) Multi-attach volumes handling: Exception could have thrown when more than one multi-attach volume were present.
+
 v0.6.1:
 - (Improvment/Minor) When replaying the 'create_ami' step, no more ask from user remediation: Do it automatically.
 
