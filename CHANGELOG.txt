@@ -2,6 +2,7 @@ v0.7.0:
 - (Improvment/Major) Added policy.json file containing the recommended IAM policy to use.
 - (Improvment/Minor) Added option --do-not-pause-on-major-warnings to avoid long pause on major warning.
 - (Improvment/Minor) Removed step 'get_volume_details' and merged it with 'discover_instance'.
+- (Improvment/Minor) Handle Ctrl-C tool interruption smartly.
 
 v0.6.2:
 - (Bug/Major) Multi-attach volumes handling: Exception could have thrown when more than one multi-attach volume were present.
