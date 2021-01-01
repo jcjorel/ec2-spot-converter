@@ -1199,3 +1199,4 @@ if __name__ == '__main__':
         print()
         logger.error("TOOL INTERRUPTED BY USER! You can restart the tool with same arguments to continue the conversion "
                 "where it has been interrupted.")
+        sys.exit(1)
