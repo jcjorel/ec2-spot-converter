@@ -22,7 +22,7 @@ curl https://raw.githubusercontent.com/jcjorel/ec2-spot-converter/master/release
 chmod u+x ec2-spot-converter
 ```
 
-* Attach an IAM role to the EC2 tool instance with provided [policy.json](policy.json) file,
+* Attach to the EC2 tool instance an IAM role with provided [policy.json](policy.json) file,
 * Install Python3 and **boto3** package.
 
 ## Convert an On-Demand instance to Spot model
