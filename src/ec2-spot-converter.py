@@ -282,10 +282,16 @@ def discover_instance_state():
         logger.warning("Pausing 10s... PLEASE READ ABOVE IMPORTANT WARNING!!! DO 'Ctrl-C' NOW IF YOU NEED SOME TIME TO READ!!")
         time.sleep(10)
 
+    # Get Volume details
+    volume_ids     = [blk["Ebs"]["VolumeId"] for blk in instance["BlockDeviceMappings"]]
+    response       = ec2_client.describe_volumes(VolumeIds=volume_ids)
+    volume_details = response["Volumes"]
+
     # 'stopped' state management.
     instance_state = instance["State"]["Name"]
     if instance_state == "stopped":
         return (True, "Instance already in 'stopped' state. Pre-requisite passed.", {
+            "VolumeDetails": volume_details,
             "InitialInstanceState": instance,
             "SpotRequest": spot_request,
             "FailedStop": False,
@@ -311,6 +317,7 @@ def discover_instance_state():
             else:
                 raise e
     return (True, msg, {
+        "VolumeDetails": volume_details,
         "InitialInstanceState": instance,
         "SpotRequest": spot_request,
         "FailedStop": failed_stop,
@@ -356,15 +363,6 @@ def tag_all_resources():
     return (True, f"Successfully tagged {resources}.", {
         "EniIds" : eni_ids
         })
-
-def get_volume_details():
-    instance    = states["ConversionStartInstanceState"]
-    volume_ids  = [blk["Ebs"]["VolumeId"] for blk in instance["BlockDeviceMappings"]]
-    response = ec2_client.describe_volumes(VolumeIds=volume_ids)
-    return (True, f"Successfully retrieved volume details for {volume_ids}.", {
-        "VolumeDetails": response["Volumes"]
-        })
-
 
 def detach_volumes():
     instance    = states["ConversionStartInstanceState"]
@@ -925,12 +923,6 @@ steps = [
         "PrettyName" : "TagAllResources",
         "Function": tag_all_resources,
         "Description": "Tag all resources (Instance, ENI(s), Volumes) with ec2-spot-converter job Id..."
-    },
-    {
-        "Name" : "get_volume_details",
-        "PrettyName" : "GetVolumeDetails",
-        "Function": get_volume_details,
-        "Description": "Get storage volume details..."
     },
     {
         "Name" : "detach_volumes",
