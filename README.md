@@ -22,8 +22,7 @@ curl https://raw.githubusercontent.com/jcjorel/ec2-spot-converter/master/release
 chmod u+x ec2-spot-converter
 ```
 
-* Configure an IAM role giving accesses to *ec2:*, *dynamodb:* to the EC2 tool instance,
-	* The recommended IAM policy for normal operations is defined in the provided [policy.json](policy.json) file.
+* Attach an IAM role to the EC2 tool instance with provided [policy.json](policy.json) file,
 * Install Python3 and **boto3** package.
 
 ## Convert an On-Demand instance to Spot model
