@@ -1,3 +1,6 @@
+v0.7.1: 
+- (Bug/Major) Fixed incorrect handling of encrypted volumes to place in the backup AMI.
+
 v0.7.0:
 - (Improvment/Major) Added policy.json file containing the recommended IAM policy to use.
 - (Improvment/Minor) Added option --do-not-pause-on-major-warnings to avoid long pause on major warning.

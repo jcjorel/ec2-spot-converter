@@ -392,9 +392,6 @@ def detach_volumes():
             if vol_detail["VolumeType"] not in ["gp2", "st1", "sc1", "standard"]:
                 if "Iops"        in vol_detail: b["Ebs"]["Iops"]        = vol_detail["Iops"]
                 if "Throughput " in vol_detail: b["Ebs"]["Throughput "] = vol_detail["Throughput"]
-            if bool(vol_detail["Encrypted"]):
-                b["Ebs"]["Encrypted"] = True
-                b["Ebs"]["KmsKeyId"] = vol_detail["KmsKeyId"]
             kept_blks.append(b)
         else:
             # Detach all volumes that do not share the same lifecycle than the instance.
@@ -642,8 +639,6 @@ def create_new_instance():
                 if voltype not in ["gp2", "st1", "sc1", "standard"]:
                     if "Iops" in volume:       b["Ebs"]["Iops"]       = volume["Iops"]
                     if "Throughput" in volume: b["Ebs"]["Throughput"] = volume["Throughput"]
-            if "Encrypted"  in volume: b["Ebs"]["Encrypted"]  = volume["Encrypted"]
-            if "KmsKeyId"   in volume: b["Ebs"]["KmsKeyId"]   = volume["KmsKeyId"]
         block_devs.append(b)
     logger.debug(f"New instance Block Device mappings : {block_devs}")
 

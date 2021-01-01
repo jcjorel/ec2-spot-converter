@@ -26,6 +26,7 @@
 	"ec2:DescribeSpotInstanceRequests",
 	"ec2:DescribeVolumes",
 	"ec2:DetachVolume",
+	"ec2:ModifyInstanceAttribute",
 	"ec2:ModifyNetworkInterfaceAttribute",
 	"ec2:RebootInstances",
 	"ec2:RunInstances",
