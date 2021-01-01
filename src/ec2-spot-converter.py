@@ -574,7 +574,7 @@ def wait_resource_release():
 
 def create_new_instance():
     instance     = states["InstanceStateCheckpoint"]
-    kepts_blks   = states["VolumesInAMI"]
+    kept_blks    = states["VolumesInAMI"]
     ami_id       = states["ImageId"]
     elastic_gpus = states["ElasticGPUs"]
     spot_request = states["SpotRequest"]
@@ -622,28 +622,8 @@ def create_new_instance():
             'NetworkInterfaceId': eni["NetworkInterfaceId"],
         })
 
-    block_devs = []
-    for blk in instance["BlockDeviceMappings"]:
-        if next(filter(lambda b: b["DeviceName"] == blk["DeviceName"], kepts_blks), None) is None:
-            continue 
-        b = { "DeviceName": blk["DeviceName"] }
-        if bool(instance["EbsOptimized"]):
-            ebs      = blk["Ebs"]
-            volume   = next(filter(lambda v: v["VolumeId"] == ebs["VolumeId"], states["VolumeDetails"]), None)
-            if volume is None:
-                raise Exception("Can't find Volume '%s'! Should never happen!! (Bug?)" % ebs["VolumeId"])
-            b["Ebs"] = {}
-            if "VolumeType" in volume: 
-                voltype = volume["VolumeType"]
-                b["Ebs"]["VolumeType"] = voltype
-                if voltype not in ["gp2", "st1", "sc1", "standard"]:
-                    if "Iops" in volume:       b["Ebs"]["Iops"]       = volume["Iops"]
-                    if "Throughput" in volume: b["Ebs"]["Throughput"] = volume["Throughput"]
-        block_devs.append(b)
-    logger.debug(f"New instance Block Device mappings : {block_devs}")
-
     launch_specifications = {
-            'BlockDeviceMappings': block_devs,
+            'BlockDeviceMappings': kept_blks,
             'EbsOptimized': instance["EbsOptimized"],
             'ImageId': ami_id,
             'InstanceType': instance["InstanceType"] if not "target_instance_type" in args else args["target_instance_type"],
