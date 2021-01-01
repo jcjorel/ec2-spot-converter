@@ -1,0 +1,39 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ec2spotconverter",
+      "Effect": "Allow",
+      "Action": [
+	"dynamodb:CreateTable",
+	"dynamodb:DeleteItem",
+	"dynamodb:GetItem",
+	"dynamodb:UpdateItem",
+	"ec2:AssociateAddress",
+	"ec2:AttachVolume",
+	"ec2:CancelSpotInstanceRequests",
+	"ec2:CreateImage",
+	"ec2:CreateTags",
+	"ec2:DeleteSnapshot",
+	"ec2:DeleteTags",
+	"ec2:DeregisterImage",
+	"ec2:DescribeAddresses",
+	"ec2:DescribeElasticGpus",
+	"ec2:DescribeImages",
+	"ec2:DescribeInstanceAttribute",
+	"ec2:DescribeInstances",
+	"ec2:DescribeNetworkInterfaces",
+	"ec2:DescribeSpotInstanceRequests",
+	"ec2:DescribeVolumes",
+	"ec2:DetachVolume",
+	"ec2:ModifyNetworkInterfaceAttribute",
+	"ec2:RebootInstances",
+	"ec2:RunInstances",
+	"ec2:StopInstances",
+	"ec2:TerminateInstances",
+	"elastic-inference:*"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
