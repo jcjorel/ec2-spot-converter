@@ -270,17 +270,19 @@ def discover_instance_state():
                 "consider converting the running instance AS-IS with '--do-not-require-stopped-instance' option. "
                 "[In order to avoid data consistency issues on the host filesystems either set all filesystems read-only "
                 "directly in the host + unmount all possible volumes, or 'SW halt' the system (See your Operating System manual for details)]")
-        logger.warning("Pausing 10s... PLEASE READ ABOVE IMPORTANT WARNING!!! DO 'Ctrl-C' NOW IF YOU NEED SOME TIME TO READ!!")
-        time.sleep(10)
+        if not args["do_not_pause_on_major_warnings"]:
+            logger.warning("Pausing 10s... PLEASE READ ABOVE IMPORTANT WARNING!!! DO 'Ctrl-C' NOW IF YOU NEED SOME TIME TO READ!!")
+            time.sleep(10)
     if args["do_not_require_stopped_instance"]:
         if args["stop_instance"]:
-            logger.warning("/!\ WARNING /!\ --do-not-require-stopped-instance option is set! As --stop-instance is set, a stop command "
+            logger.warning("/!\ WARNING /!\ --do-not-require-stopped-instance option is set! As --stop-instance is also set, a stop command "
                 "is going to be tried. If it fails, the conversion will continue anyway.") 
         else:
             logger.warning("/!\ WARNING /!\ --do-not-require-stopped-instance option is set! As --stop-instance is NOT set, "
                 "the conversion will start directly on the running instance.") 
-        logger.warning("Pausing 10s... PLEASE READ ABOVE IMPORTANT WARNING!!! DO 'Ctrl-C' NOW IF YOU NEED SOME TIME TO READ!!")
-        time.sleep(10)
+        if not args["do_not_pause_on_major_warnings"]:
+            logger.warning("Pausing 10s... PLEASE READ ABOVE IMPORTANT WARNING!!! DO 'Ctrl-C' NOW IF YOU NEED SOME TIME TO READ!!")
+            time.sleep(10)
 
     # Get Volume details
     volume_ids     = [blk["Ebs"]["VolumeId"] for blk in instance["BlockDeviceMappings"]]
@@ -1055,6 +1057,7 @@ default_args = {
         "force": False,
         "ignore_userdata": False,
         "ignore_hibernation_options": False,
+        "do_not_pause_on_major_warnings": False,
         "do_not_require_stopped_instance": False
     }
 if __name__ == '__main__':
@@ -1101,6 +1104,9 @@ if __name__ == '__main__':
             action='store_true', required=False, default=argparse.SUPPRESS)
     parser.add_argument('-f', '--force', help="Force to start a conversion even if the tool suggests that it is not needed.", 
             action='store_true', required=False, default=argparse.SUPPRESS)
+    parser.add_argument('--do-not-pause-on-major-warnings', help="Do not pause on major warnings. Without this flag, the tool waits 10 seconds to "
+            "let user read major warnings.", 
+            action='store_true', required=False, default=argparse.SUPPRESS)
     parser.add_argument('--reset-step', help="(DANGEROUS) Force the state machine to go back to the specified processing step.",
             type=int, required=False, default=argparse.SUPPRESS)
     parser.add_argument('-d', '--debug', help="Turn on debug traces.", 
@@ -1131,7 +1137,7 @@ if __name__ == '__main__':
             log.error("Expected step can't be below 1.")
             sys.exit(1)
         elif expected_step == 1:
-            set_state("ConversionStep", "")
+            set_state("", "") # Discard the DynamoDB record
             sys.exit(0)
         elif expected_step <= len(step_names):
             set_state("ConversionStep", step_names[expected_step-1]["Name"])
