@@ -23,7 +23,7 @@ chmod u+x ec2-spot-converter
 ```
 
 * Attach to the EC2 tool instance an IAM role with provided [policy.json](policy.json) file,
-* Install Python3 and **boto3** package (Ex: `python3 -m pip install boto3`).
+* Install Python3 and **boto3** package (with `python3 -m pip install boto3`).
 
 ## Convert an On-Demand instance to Spot model
 
