@@ -26,9 +26,9 @@ import logging
 from logging import handlers
 LOG_LEVEL = logging.INFO
 logger = None
-def configure_logging():
+def configure_logging(argv):
     global logger
-    logger = logging.getLogger(sys.argv[0])
+    logger = logging.getLogger(argv[0])
     logger.setLevel(LOG_LEVEL)
     logger.propagate = False
     ch = logging.StreamHandler()
@@ -45,14 +45,14 @@ try:
     from botocore.exceptions import ClientError
     from botocore.config import Config
 except:
-    logger.error("Missing critical dependency: 'boto3'. Please install it with 'python3 -m pip install boto3'.")
-    sys.exit(1)
+    logger.exception("")
+    raise Exception("Missing critical dependency: 'boto3'. Please install it with 'python3 -m pip install boto3'.")
 
 config = Config(
-retries = {
-    'max_attempts': 5,
-    'mode': 'standard'
-})
+    retries = {
+        'max_attempts': 5,
+        'mode': 'standard'
+    })
 ec2_client               = boto3.client("ec2",               config=config)
 dynamodb_client          = boto3.client("dynamodb",          config=config)
 elastic_inference_client = boto3.client("elastic-inference", config=config)
@@ -1060,13 +1060,15 @@ default_args = {
         "do_not_pause_on_major_warnings": False,
         "do_not_require_stopped_instance": False
     }
-if __name__ == '__main__':
-    if "--version" in sys.argv or "-v" in sys.argv:
-        print(f"{VERSION} ({RELEASE_DATE})")
-        sys.exit(0)
 
-    require_instance_id = ("--generate-dynamodb-table" not in sys.argv and
-                           "--reset-step" not in sys.argv)
+def main(argv):
+    global args
+    if "--version" in argv or "-v" in argv:
+        print(f"{VERSION} ({RELEASE_DATE})")
+        return 0
+
+    require_instance_id = ("--generate-dynamodb-table" not in argv and
+                           "--reset-step" not in argv)
     parser = argparse.ArgumentParser(description=f"EC2 Spot converter {VERSION} ({RELEASE_DATE})")
     parser.add_argument('-i', '--instance-id', help="The id of the EC2 instance to convert.", 
             type=str, required=require_instance_id, default=argparse.SUPPRESS)
@@ -1121,11 +1123,11 @@ if __name__ == '__main__':
         if a not in args or args[a] is None: args[a] = default_args[a]
 
     LOG_LEVEL=logging.DEBUG if "debug" in args else logging.INFO
-    configure_logging()
+    configure_logging(argv)
 
     if "generate_dynamodb_table" in cmdargs:
         create_state_table(args["dynamodb_tablename"])
-        sys.exit(0)
+        return 0
 
     step_names = [s["Name"] for s in steps]
 
@@ -1134,17 +1136,17 @@ if __name__ == '__main__':
         logger.warning("/!\ WARNING /!\ You are manipulating the tool state machine. Make sure you know what you are doing!")
         expected_step = cmdargs["reset_step"]
         if expected_step < 1:
-            log.error("Expected step can't be below 1.")
-            sys.exit(1)
+            logger.error("Expected step can't be below 1.")
+            return 1
         elif expected_step == 1:
             set_state("", "") # Discard the DynamoDB record
-            sys.exit(0)
+            return 0
         elif expected_step <= len(step_names):
             set_state("ConversionStep", step_names[expected_step-1]["Name"])
-            sys.exit(0)
+            return 0
         else:
             log.error("Expected state can't be above %s." % len(step_names))
-            sys.exit(1)
+            return 1
 
     start_time = time.time()
     for i in range(0, len(steps)):
@@ -1169,7 +1171,7 @@ if __name__ == '__main__':
         return_code, reason, keys = step["Function"]()
         if not return_code:
             logger.error(f"Failed to perform step '%s'! Reason={reason}" % step["PrettyName"])
-            sys.exit(1)
+            return 1
         logger.info(f"  => SUCCESS. {reason}")
         set_state("ConversionStep", step_name)
         reasons = states["ConversionStepReasons"] if "ConversionStepReasons" in states else {}
@@ -1188,3 +1190,12 @@ if __name__ == '__main__':
     if "DetachedVolumes" in states and len(states["DetachedVolumes"]) and not args["reboot_if_needed"]:
         logger.warning("/!\ WARNING /!\ Volumes attached after boot. YOUR NEW INSTANCE MAY NEED A REBOOT!")
 
+    return 0
+
+if __name__ == '__main__':
+    try:
+        sys.exit(main(sys.argv))
+    except KeyboardInterrupt as e:
+        print()
+        logger.error("TOOL INTERRUPTED BY USER! You can restart the tool with same arguments to continue the conversion "
+                "where it has been interrupted.")
