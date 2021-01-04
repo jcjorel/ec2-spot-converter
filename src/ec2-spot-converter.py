@@ -1130,7 +1130,7 @@ def main(argv):
     parser.add_argument('--dynamodb-tablename', help="A DynamoDB table name to hold conversion states. "
             "Default: 'ec2-spot-converter-state-table'", 
             type=str, required=False, default=argparse.SUPPRESS)
-    parser.add_argument('--generate-dynamodb-table', help="Generate a DynamoDB table name to hold conversion states.",
+    parser.add_argument('--generate-dynamodb-table', help="Create a DynamoDB table to hold conversion states.",
             action='store_true', required=False, default=argparse.SUPPRESS)
     parser.add_argument('-f', '--force', help="Force to start a conversion even if the tool suggests that it is not needed.", 
             action='store_true', required=False, default=argparse.SUPPRESS)

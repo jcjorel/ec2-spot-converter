@@ -210,8 +210,7 @@ optional arguments:
                         A DynamoDB table name to hold conversion states.
                         Default: 'ec2-spot-converter-state-table'
   --generate-dynamodb-table
-                        Generate a DynamoDB table name to hold conversion
-                        states.
+                        Generate a DynamoDB table to hold conversion states.
   -f, --force           Force to start a conversion even if the tool suggests
                         that it is not needed.
   --do-not-pause-on-major-warnings
