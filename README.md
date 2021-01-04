@@ -126,10 +126,10 @@ The tool can be used to recreate a new healthy Spot instance from the problemati
 Simply call `ec2-spot-converter` with the problematic Instance Id and specify options --target-billing-model 'spot'
 **and --do-not-require-stopped-instance** (as the instance can not be stopped).
 
-> It is recommended to perform a System stop (so **not a System reboot**) on the guest Operating System to switch Read-Only
+> It is recommended to perform a System stop (so **NOT a System reboot**) on the guest Operating System to switch Read-Only
 all volumes and ensure Filesystem data consistency. On a Linux guest, usually, the Linux command `halt` will stop the Operating
 System safely and won't reboot immediatly: Please ensure that the message `"reboot: System halted."` is displayed on the guest
-console with the AWS Console screenshot feature. 
+console thanks to AWS Console screenshot feature. 
 
 ### Encrypt Root Disk during conversion
 
