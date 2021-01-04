@@ -1112,9 +1112,9 @@ def main(argv):
             type=str, required=False, default=argparse.SUPPRESS)
     parser.add_argument('--max-spot-price', help="Maximum hourly price for Spot instance target.", 
             type=float, required=False, default=argparse.SUPPRESS)
-    parser.add_argument('--volume-kms-key-id', help="Identifier (key ID, key alias, ID ARN, or alias ARN) for a customer or AWS managed CMK "
+    parser.add_argument('--volume-kms-key-id', help="Identifier (key ID, key alias, ID ARN, or alias ARN) for a customer or AWS managed KMS Key "
             "under which the EBS volume(s) will be encrypted during conversion. Note: You cannot specify 'aws/ebs' directly, please specify "
-            "the plain KMS Key ARN instead. It applies only to volumes placed in the Backup AMI AND not already encrypted.", 
+            "the plain KMS Key ARN instead. It applies only to volumes placed in the Backup AMI *AND* not already encrypted.", 
             type=str, required=False, default=argparse.SUPPRESS)
     parser.add_argument('-s', '--stop-instance', help="Stop instance instead of failing because it is in 'running' state.",
             action='store_true', required=False, default=argparse.SUPPRESS)
