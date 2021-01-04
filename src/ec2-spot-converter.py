@@ -765,6 +765,7 @@ def create_new_instance():
             logger.info("Setting maximum Spot price to '%s'." % args["max_spot_price"])
             launch_specifications["InstanceMarketOptions"]["SpotOptions"]["MaxPrice"] = str(args["max_spot_price"])
 
+    set_state("NewInstanceLaunchSpecification", launch_specifications)
     response = ec2_client.run_instances(**launch_specifications)
     logger.debug(response)
     new_instance_id = response["Instances"][0]["InstanceId"]
