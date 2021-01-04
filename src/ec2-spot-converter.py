@@ -684,6 +684,13 @@ def create_new_instance():
             'MinCount': 1
         }
 
+    if "MetadataOptions" in instance:
+        meta_options = instance["MetadataOptions"]
+        launch_specifications["MetadataOptions"] = {}
+        launch_specifications["MetadataOptions"]["HttpTokens"]              = meta_options["HttpTokens"]
+        launch_specifications["MetadataOptions"]["HttpPutResponseHopLimit"] = meta_options["HttpPutResponseHopLimit"]
+        launch_specifications["MetadataOptions"]["HttpEndpoint"]            = meta_options["HttpEndpoint"]
+
     if "HibernationOptions" in instance:
         if args["ignore_hibernation_options"]:
             logger.info("--ignore-hibernation-options set. Do not copy 'HibernationOptions' in the converted instance.")
