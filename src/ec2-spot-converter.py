@@ -691,6 +691,14 @@ def create_new_instance():
         launch_specifications["MetadataOptions"]["HttpPutResponseHopLimit"] = meta_options["HttpPutResponseHopLimit"]
         launch_specifications["MetadataOptions"]["HttpEndpoint"]            = meta_options["HttpEndpoint"]
 
+    if "EnclaveOptions" in instance:
+        launch_specifications["EnclaveOptions"] = {
+                "Enabled": instance["EnclaveOptions"]["Enabled"]
+            }
+
+    if "Licenses" in instance:
+        launch_specifications["LicenseSpecifications"] = instance["Licenses"]
+
     if "HibernationOptions" in instance:
         if args["ignore_hibernation_options"]:
             logger.info("--ignore-hibernation-options set. Do not copy 'HibernationOptions' in the converted instance.")
