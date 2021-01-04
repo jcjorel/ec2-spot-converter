@@ -1,6 +1,7 @@
 v0.8.0:
 - (Improvment/Major) Updated recommended IAM policy to allow kms:DescribeKey.
 - (Improvment/Major) Added option --volume-kms-key-id to set the KMS Key Id to use to encrypt volumes during conversion.
+- (Improvment/Minor) Keep records of command line arguments at each step and warn the user when they differ.
 
 v0.7.1: 
 - (Bug/Major) Fixed incorrect handling of encrypted volumes to place in the backup AMI.
