@@ -28,6 +28,8 @@ LOG_LEVEL = logging.INFO
 logger = None
 def configure_logging(argv):
     global logger
+    if logger is not None:
+        return
     logger = logging.getLogger(argv[0])
     logger.setLevel(LOG_LEVEL)
     logger.propagate = False
