@@ -1079,6 +1079,7 @@ default_args = {
         "force": False,
         "ignore_userdata": False,
         "ignore_hibernation_options": False,
+        "debug": False,
         "do_not_pause_on_major_warnings": False,
         "do_not_require_stopped_instance": False
     }
@@ -1189,6 +1190,20 @@ def main(argv):
             if i <= last_succes_step:
                 display_status = ": RECOVERED STATE. SKIPPED!"
         logger.info(f"[STEP %d/%d] %s %s" % (i + 1, len(steps), step["Description"], display_status))
+
+        # Warn the user when command line has changed between invocation
+        if i > 0 and "ConversionStepCmdLineArgs" in states:
+            prev_step_name = steps[i-1]["Name"]
+            prev_step_args = states["ConversionStepCmdLineArgs"][prev_step_name] 
+            current_args   = args if display_status == "" else states["ConversionStepCmdLineArgs"][steps[i]["Name"]]
+            if prev_step_args != current_args:
+                changed_args = {}
+                for arg in current_args:
+                    if prev_step_args[arg] != current_args[arg]:
+                        changed_args[arg] = [prev_step_args[arg], current_args[arg]]
+                logger.warning(f"/!\ WARNING /!\ Tool command line has changed compared to previous step : {{ARG:[OLD, NEW VALUE]}} => {changed_args}!")
+
+        # If step already played, print the former result.
         if display_status != "":
             if "ConversionStepReasons" in states and step_name in states["ConversionStepReasons"]:
                 logger.info(f"  => SUCCESS. %s" % states["ConversionStepReasons"][step_name])
@@ -1200,9 +1215,17 @@ def main(argv):
             return 1
         logger.info(f"  => SUCCESS. {reason}")
         set_state("ConversionStep", step_name)
-        reasons = states["ConversionStepReasons"] if "ConversionStepReasons" in states else {}
+
+        # Keep track of reasons
+        reasons            = states["ConversionStepReasons"] if "ConversionStepReasons" in states else {}
         reasons[step_name] = reason
         set_state("ConversionStepReasons", reasons, force_persist=True)
+        # Keep track of user supplied command line parameters
+        step_cmdlines            = states["ConversionStepCmdLineArgs"] if "ConversionStepCmdLineArgs" in states else {}
+        step_cmdlines[step_name] = args
+        set_state("ConversionStepCmdLineArgs", step_cmdlines, force_persist=True)
+
+        # Persist known keys
         for s in keys:
             if s != "JobId": set_state(s, keys[s])
 
