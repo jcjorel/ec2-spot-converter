@@ -12,8 +12,8 @@ Others features:
 
 Conversion time ranges from 2 to 5 minutes depending on the instance type.
 
-> **IMPORTANT REMARK**: This tool aims to ease handling of **Pet'** machines when you have to do so (very frequent after a pure *Lift&Shift*
-migration into the Cloud). The author strongly advises to always consider managing resources as **Cow** (with IaC, AutoScaling Groups, Stateless...).
+> **IMPORTANT REMARK**: This tool aims to ease handling of **'Pet'** machines when you have to do so (very frequent after a pure *Lift&Shift*
+migration into the Cloud). The author strongly advises to always consider managing resources as **'Cattle'** (with IaC, AutoScaling Groups, Stateless...).
 **As a consequence, this tool should be only useful transient while transitionning to Cloud Native best-practices**.
 
 # Getting started
