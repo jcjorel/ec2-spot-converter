@@ -5,7 +5,7 @@ instance attributes (Launch configuration, Tags..), network attributes (existing
 Elastic Inference accelerators and Elastic GPUs.
 
 Others features:
-* Can also perform Spot-to-Spot and OnDemand-to-OnDemand conversions:
+* Can also perform **Spot-to-Spot** and **OnDemand-to-OnDemand** conversions:
 	* Allow replacement of existing Spot instances with new "identical" ones to update the instance type and CPU options,
 	* Help to fix some Spot instance conditions (Ex: *'IncorrectSpotRequestState Exception'*),
 	* Allow Root Disk encryption during conversion.
@@ -133,17 +133,17 @@ console with the AWS Console screenshot feature.
 
 ### Encrypt Root Disk during conversion
 
-The tool can be used to encrypt the Root Disk (and more generally, all volumes marked with DeleteOnTermination=True that will be part fo the 
+The tool can be used to encrypt the Root Disk (and more generally, all volumes marked with attribute *DeleteOnTermination=True* that will be part of the 
 Backup AMI).
 
-Simply specify option `--volume-kms-key-id` with a valid KMS Key Id and all volumes part of the Backup AMI will be encrypted. 
+Simply specify option `--volume-kms-key-id` with a valid KMS Key Id and all volumes part of the Backup AMI will be encrypted in the new instance. 
 If a volume is already encrypted, it will be left as-is just generating a warning.
 
 Ex:
 
 	--volume-kms-key-id arn:aws:kms:eu-west-1:111111111111:key/22222222-3333-4444-5555-666666666666
 
-If you want to convert Spot-to-Spot or OnDemand-to-OnDemand, specify `--force` option as well.
+If you want to convert **Spot-to-Spot** or **OnDemand-to-OnDemand**, specify `--force` option as well.
 
 
 # Command line usage
