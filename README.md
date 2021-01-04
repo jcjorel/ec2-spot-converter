@@ -4,9 +4,11 @@ This tool converts existing AWS EC2 instances back and forth between On-Demand a
 instance attributes (Launch configuration, Tags..), network attributes (existing Private IP addresses, Elastic IP), storage (Volumes),
 Elastic Inference accelerators and Elastic GPUs.
 
-It also allows replacement of existing Spot instances with new "identical" ones to update the instance type and cpu options. 
-
-It can also help to fix some Spot instance conditions (Ex: *'IncorrectSpotRequestState Exception'*).
+Others features:
+* Can also perform Spot-to-Spot and OnDemand-to-OnDemand conversions:
+	* Allow replacement of existing Spot instances with new "identical" ones to update the instance type and CPU options,
+	* Help to fix some Spot instance conditions (Ex: *'IncorrectSpotRequestState Exception'*),
+	* Allow Root Disk encryption during conversion.
 
 Conversion time ranges from 2 to 5 minutes depending on the instance type.
 
@@ -123,6 +125,21 @@ The tool can be used to recreate a new healthy Spot instance from the problemati
 
 Simply call `ec2-spot-converter` with the problematic Instance Id and specify options --target-billing-model 'spot'
 **and --do-not-require-stopped-instance** (as the instance can not be stopped).
+
+### Encrypt Root Disk during conversion
+
+The tool can be used to encrypt the Root Disk (and more generally, all volumes marked with DeleteOnTermination=True that will be part fo the 
+Backup AMI).
+
+Simply specify option `--volume-kms-key-id` with a valid KMS Key Id and all volumes part of the Backup AMI will be encrypted. 
+If a volume is already encrypted, it will be left as-is just generating a warning.
+
+Ex:
+
+	--volume-kms-key-id arn:aws:kms:eu-west-1:111111111111:key/22222222-3333-4444-5555-666666666666
+
+If you want to convert Spot-to-Spot or OnDemand-to-OnDemand, specify `--force` option as well.
+
 
 # Command line usage
 

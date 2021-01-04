@@ -56,6 +56,7 @@ config = Config(
 ec2_client               = boto3.client("ec2",               config=config)
 dynamodb_client          = boto3.client("dynamodb",          config=config)
 elastic_inference_client = boto3.client("elastic-inference", config=config)
+kms_client               = boto3.client("kms",               config=config)
 
 def pprint(json_obj):
     return json.dumps(json_obj, indent=4, sort_keys=True, default=str)
@@ -284,6 +285,15 @@ def discover_instance_state():
             logger.warning("Pausing 10s... PLEASE READ ABOVE IMPORTANT WARNING!!! DO 'Ctrl-C' NOW IF YOU NEED SOME TIME TO READ!!")
             time.sleep(10)
 
+    if "volume_kms_key_id" in args:
+        key_id = args["volume_kms_key_id"]
+        try:
+            response = kms_client.describe_key(KeyId=key_id)
+        except Exception as e:
+            return (False, f"Cannot retrieve details of the supplied Volume KMS Key Id: {e}", {})
+        logger.debug(response)
+        logger.info(f"Valid KMS Key Id specified '{key_id}' (%s)" % response["KeyMetadata"]["Arn"])
+
     # Get Volume details
     volume_ids     = [blk["Ebs"]["VolumeId"] for blk in instance["BlockDeviceMappings"]]
     response       = ec2_client.describe_volumes(VolumeIds=volume_ids)
@@ -373,47 +383,32 @@ def detach_volumes():
     instance_id = instance["InstanceId"]
 
     detached_ids= []
-    kept_blks   = []
     for blk in instance["BlockDeviceMappings"]:
         vol = blk["Ebs"]["VolumeId"]
         if vol in detached_ids:
             continue
         if root_device == blk["DeviceName"] or bool(blk["Ebs"]["DeleteOnTermination"]):
-            # We always keep the Root device and all volumes with DeleteOnTermination=True as part of the AMI created.
-            vol_detail = next(filter(lambda v: v["VolumeId"] == vol, vol_details), None)
-            b = {
-                "DeviceName": blk["DeviceName"],
-                "Ebs": {
-                    "DeleteOnTermination": blk["Ebs"]["DeleteOnTermination"],
-                    "VolumeSize": vol_detail["Size"],
-                    "VolumeType": vol_detail["VolumeType"],
-                }
-            }
-            if vol_detail["VolumeType"] not in ["gp2", "st1", "sc1", "standard"]:
-                if "Iops"        in vol_detail: b["Ebs"]["Iops"]        = vol_detail["Iops"]
-                if "Throughput " in vol_detail: b["Ebs"]["Throughput "] = vol_detail["Throughput"]
-            kept_blks.append(b)
+            # We detach only volumes with DeleteOnTermination=False and never the Root device.
+            continue
+        # Detach all volumes that do not share the same lifecycle than the instance.
+        response         = ec2_client.describe_volumes(VolumeIds=[vol])
+        vol_detail       = response["Volumes"][0]
+        stilled_attached = next(filter(lambda a: a["InstanceId"] == instance_id, vol_detail["Attachments"]), None) 
+        volume_state     = vol_detail["State"]
+        multi_attached   = vol_detail["MultiAttachEnabled"]
+        if volume_state == "in-use" and stilled_attached is not None:
+            logger.info(f"Detaching volume {vol}... (volume state='{volume_state}', multi-attached='{multi_attached}')")
+            response = ec2_client.detach_volume(Device=blk["DeviceName"], InstanceId=instance_id, VolumeId=vol)
         else:
-            # Detach all volumes that do not share the same lifecycle than the instance.
-            response         = ec2_client.describe_volumes(VolumeIds=[vol])
-            vol_detail       = response["Volumes"][0]
-            stilled_attached = next(filter(lambda a: a["InstanceId"] == instance_id, vol_detail["Attachments"]), None) 
-            volume_state     = vol_detail["State"]
-            multi_attached   = vol_detail["MultiAttachEnabled"]
-            if volume_state == "in-use" and stilled_attached is not None:
-                logger.info(f"Detaching volume {vol}... (volume state='{volume_state}', multi-attached='{multi_attached}')")
-                response = ec2_client.detach_volume(Device=blk["DeviceName"], InstanceId=instance_id, VolumeId=vol)
+            # Can happen if the tool has been interrupted and is replayed to redo the step.
+            if stilled_attached is None:
+                logger.info(f"Volume {vol} is no more attached to instance. Do nothing... (volume state='{volume_state}', multi-attached='{multi_attached}')")
             else:
-                # Can happen if the tool has been interrupted and is replayed to redo the step.
-                if stilled_attached is None:
-                    logger.info(f"Volume {vol} is no more attached to instance. Do nothing... (volume state='{volume_state}', multi-attached='{multi_attached}')")
-                else:
-                    logger.info(f"Volume {vol} is not in 'in-use' state. Do nothing... (volume state='{volume_state}', multi-attached='{multi_attached}')")
-            detached_ids.append(vol)
+                logger.info(f"Volume {vol} is not in 'in-use' state. Do nothing... (volume state='{volume_state}', multi-attached='{multi_attached}')")
+        detached_ids.append(vol)
 
     return (True, f"Detached volumes {detached_ids}.", {
         "DetachedVolumes": detached_ids,
-        "VolumesInAMI": kept_blks,
         "WithoutExtraVolumesInstanceState": get_instance_details()
         })
 
@@ -444,13 +439,37 @@ def wait_volume_detach():
     return (True, f"All detached volumes are 'available' : {volume_ids}.", {})
 
 def create_ami():
-    instance    = states["WithoutExtraVolumesInstanceState"]
-    kepts_blks  = states["VolumesInAMI"]
+    vol_details = states["VolumeDetails"]
+    instance    = states["ConversionStartInstanceState"]
     instance_id = instance["InstanceId"]
     image_name  = f"ec2-spot-converter-{instance_id}"
+    root_device = instance["RootDeviceName"]
+
+    # Compute the AMI Device mapping
+    kept_blks   = []
+    for blk in instance["BlockDeviceMappings"]:
+        vol = blk["Ebs"]["VolumeId"]
+        if root_device == blk["DeviceName"] or bool(blk["Ebs"]["DeleteOnTermination"]):
+            # We always keep the Root device and all volumes with DeleteOnTermination=True as part of the AMI created.
+            vol_detail  = next(filter(lambda v: v["VolumeId"] == vol, vol_details), None)
+            device_name = blk["DeviceName"] 
+            b  = {
+                "DeviceName": device_name,
+                "Ebs": {
+                    "DeleteOnTermination": blk["Ebs"]["DeleteOnTermination"],
+                    "VolumeSize": vol_detail["Size"],
+                    "VolumeType": vol_detail["VolumeType"],
+                }
+            }
+            ebs = b["Ebs"]
+            if vol_detail["VolumeType"] not in ["gp2", "st1", "sc1", "standard"]:
+                if "Iops"        in vol_detail: ebs["Iops"]        = vol_detail["Iops"]
+                if "Throughput " in vol_detail: ebs["Throughput "] = vol_detail["Throughput"]
+            kept_blks.append(b)
+
     try:
-        logger.info(f"AMI Block device mapping: {kepts_blks}")
-        response= ec2_client.create_image(Name=image_name, InstanceId=instance_id, BlockDeviceMappings=kepts_blks)
+        logger.info(f"AMI Block device mapping: {kept_blks}")
+        response= ec2_client.create_image(Name=image_name, InstanceId=instance_id, BlockDeviceMappings=kept_blks)
         logger.debug(response)
     except ClientError as e:
         if e.response['Error']['Code'] != 'InvalidAMIName.Duplicate':
@@ -463,6 +482,7 @@ def create_ami():
         }])
     image_id = response["Images"][0]["ImageId"]
     return (True, f"AMI image {image_name}/{image_id} started.", {
+        "VolumesInAMI": kept_blks,
         "ImageId": image_id
         })
 
@@ -574,10 +594,12 @@ def wait_resource_release():
 
 def create_new_instance():
     instance     = states["InstanceStateCheckpoint"]
+    vol_details  = states["VolumeDetails"]
     kept_blks    = states["VolumesInAMI"]
     ami_id       = states["ImageId"]
     elastic_gpus = states["ElasticGPUs"]
     spot_request = states["SpotRequest"]
+    instance_id  = instance["InstanceId"]
 
     # Sanity check: In case of step replay, we may have already started a new instance but did not have the time 
     #   to persist the next state machine step. We control here if the network interfaces are not already reconnected
@@ -621,6 +643,25 @@ def create_new_instance():
             'DeviceIndex': eni["Attachment"]["DeviceIndex"],
             'NetworkInterfaceId': eni["NetworkInterfaceId"],
         })
+
+    # Add Volume encryption if requested.
+    if "volume_kms_key_id" in args:
+        key_id   = args["volume_kms_key_id"]
+        response = kms_client.describe_key(KeyId=key_id)
+        logger.debug(response)
+        key_arn  = response["KeyMetadata"]["Arn"]
+        for blk in kept_blks:
+            device_name = blk["DeviceName"]
+            for vol_detail in vol_details:
+                attachment = next(filter(lambda a: a["Device"] == device_name, vol_detail["Attachments"]), None)
+                if attachment is not None:
+                    break
+            if vol_detail["Encrypted"]:
+                logger.warning(f"Device {device_name} is already encrypted with Kms Key Id '%s'. Keep it as is..." % vol_detail["KmsKeyId"])
+            else:
+                logger.info(f"Device {device_name} marked for encryption with Key Id '{key_arn}'.")
+                blk["Ebs"]["Encrypted"] = True
+                blk["Ebs"]["KmsKeyId"]  = key_arn
 
     launch_specifications = {
             'BlockDeviceMappings': kept_blks,
@@ -737,6 +778,10 @@ def wait_new_instance():
         instance      = get_instance_details(instance_id=instance_id)
         if instance is not None:
             status_code   = instance["State"]["Name"]
+        if status_code == "terminated":
+            set_state("ConversionStep", get_previous_step_of_step("create_new_instance"))
+            return (False, f"Something bad happened during launch of new instance {instance_id}! Instance is now terminated. "
+                    "Watch CloudWatch for further indications.", {})
         max_attempts -= 1
         if max_attempts % 30 == 0:
             logger.info("Waiting for instance to come up...")
@@ -1064,6 +1109,10 @@ def main(argv):
             type=str, required=False, default=argparse.SUPPRESS)
     parser.add_argument('--max-spot-price', help="Maximum hourly price for Spot instance target.", 
             type=float, required=False, default=argparse.SUPPRESS)
+    parser.add_argument('--volume-kms-key-id', help="Identifier (key ID, key alias, ID ARN, or alias ARN) for a customer or AWS managed CMK "
+            "under which the EBS volume(s) will be encrypted during conversion. Note: You cannot specify 'aws/ebs' directly, please specify "
+            "the plain KMS Key ARN instead. It applies only to volumes placed in the Backup AMI AND not already encrypted.", 
+            type=str, required=False, default=argparse.SUPPRESS)
     parser.add_argument('-s', '--stop-instance', help="Stop instance instead of failing because it is in 'running' state.",
             action='store_true', required=False, default=argparse.SUPPRESS)
     parser.add_argument('--reboot-if-needed', help="Reboot the new instance if needed.", 
@@ -1109,7 +1158,7 @@ def main(argv):
     ## Manage tricks to force the state machine 
     if "reset_step" in cmdargs:
         logger.warning("/!\ WARNING /!\ You are manipulating the tool state machine. Make sure you know what you are doing!")
-        expected_step = cmdargs["reset_step"]
+        expected_step = int(cmdargs["reset_step"])
         if expected_step < 1:
             logger.error("Expected step can't be below 1.")
             return 1
@@ -1117,7 +1166,7 @@ def main(argv):
             set_state("", "") # Discard the DynamoDB record
             return 0
         elif expected_step <= len(step_names):
-            set_state("ConversionStep", step_names[expected_step-1]["Name"])
+            set_state("ConversionStep", step_names[expected_step-1])
             return 0
         else:
             log.error("Expected state can't be above %s." % len(step_names))
