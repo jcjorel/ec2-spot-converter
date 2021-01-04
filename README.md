@@ -149,16 +149,20 @@ If you want to convert **Spot-to-Spot** or **OnDemand-to-OnDemand**, specify `--
 # Command line usage
 
 ```shell
-usage: ec2-spot-converter [-h] -i INSTANCE_ID [-m {spot,on-demand}]
-                          [-t TARGET_INSTANCE_TYPE]
-                          [--cpu-options CPU_OPTIONS]
-                          [--max-spot-price MAX_SPOT_PRICE]
-                          [--dynamodb-tablename DYNAMODB_TABLENAME]
-                          [--generate-dynamodb-table] [-s]
-                          [--reboot-if-needed] [--delete-ami] [-d] [-v]
-                          [-r]
+usage: ec2-spot-converter-v0.8.0 [-h] -i INSTANCE_ID [-m {spot,on-demand}]
+                                 [-t TARGET_INSTANCE_TYPE] [--ignore-userdata]
+                                 [--ignore-hibernation-options]
+                                 [--cpu-options CPU_OPTIONS]
+                                 [--max-spot-price MAX_SPOT_PRICE]
+                                 [--volume-kms-key-id VOLUME_KMS_KEY_ID] [-s]
+                                 [--reboot-if-needed] [--delete-ami]
+                                 [--do-not-require-stopped-instance] [-r]
+                                 [--dynamodb-tablename DYNAMODB_TABLENAME]
+                                 [--generate-dynamodb-table] [-f]
+                                 [--do-not-pause-on-major-warnings]
+                                 [--reset-step RESET_STEP] [-d] [-v]
 
-EC2 Spot converter v0.1.0 (Tue Dec 22 21:42:24 UTC 2020)
+EC2 Spot converter v0.8.0 (Mon Jan 4 20:21:52 UTC 2021)
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -173,17 +177,22 @@ optional arguments:
                         Spot instance as EC2.modify_instance_attribute() can't
                         be used to change Instance type. Default:
                         <original_instance_type>
+  --ignore-userdata     Do not copy 'UserData' on converted instance.
+  --ignore-hibernation-options
+                        Do not copy 'HibernationOptions' on converted
+                        instance.
   --cpu-options CPU_OPTIONS
                         Instance CPU Options JSON structure. Format:
                         {"CoreCount":123,"ThreadsPerCore":123}.
   --max-spot-price MAX_SPOT_PRICE
                         Maximum hourly price for Spot instance target.
-  --dynamodb-tablename DYNAMODB_TABLENAME
-                        A DynamoDB table name to hold conversion states.
-                        Default: 'ec2-spot-converter-state-table'
-  --generate-dynamodb-table
-                        Generate a DynamoDB table name to hold conversion
-                        states.
+  --volume-kms-key-id VOLUME_KMS_KEY_ID
+                        Identifier (key ID, key alias, ID ARN, or alias ARN)
+                        for a Customer or AWS managed KMS Key used to encrypt
+                        the EBS volume(s). Note: You cannot specify 'aws/ebs'
+                        directly, please specify the plain KMS Key ARN
+                        instead. It applies ONLY to volumes placed in the
+                        Backup AMI *AND* not already encrypted.
   -s, --stop-instance   Stop instance instead of failing because it is in
                         'running' state.
   --reboot-if-needed    Reboot the new instance if needed.
@@ -191,11 +200,26 @@ optional arguments:
   --do-not-require-stopped-instance
                         Allow instance conversion while instance is in
                         'running' state. (NOT RECOMMENDED)
-  -d, --debug           Turn on debug traces.
-  -v, --version         Display tool version.
   -r, --review-conversion-result
                         Display side-by-side conversion result. Note: REQUIRES
                         'VIM' EDITOR!
+  --dynamodb-tablename DYNAMODB_TABLENAME
+                        A DynamoDB table name to hold conversion states.
+                        Default: 'ec2-spot-converter-state-table'
+  --generate-dynamodb-table
+                        Generate a DynamoDB table name to hold conversion
+                        states.
+  -f, --force           Force to start a conversion even if the tool suggests
+                        that it is not needed.
+  --do-not-pause-on-major-warnings
+                        Do not pause on major warnings. Without this flag, the
+                        tool waits 10 seconds to let user read major warnings.
+  --reset-step RESET_STEP
+                        (DANGEROUS) Force the state machine to go back to the
+                        specified processing step.
+  -d, --debug           Turn on debug traces.
+  -v, --version         Display tool version.
+
 ```
 
 > At the end of a conversion, the tool can replay as many times as wished former conversion results specifying the original instance id: It will display again all execution steps and it can be useful to review again the conversion result (VIm Diff window) of a previous run. The `--delete-ami` option can also be added in a subsequent call to suppress the AMI and associated snapshots built by a previous tool execution.
