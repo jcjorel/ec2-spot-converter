@@ -151,7 +151,7 @@ If you want to convert **Spot-to-Spot** or **OnDemand-to-OnDemand**, specify `--
 
 # Command line usage
 
-```shell
+```
 usage: ec2-spot-converter-v0.8.0 [-h] -i INSTANCE_ID [-m {spot,on-demand}]
                                  [-t TARGET_INSTANCE_TYPE] [--ignore-userdata]
                                  [--ignore-hibernation-options]
