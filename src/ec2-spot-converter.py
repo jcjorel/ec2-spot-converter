@@ -1126,7 +1126,7 @@ def main(argv):
     parser.add_argument('--cpu-options', help="Instance CPU Options JSON structure. "
             'Format: {"CoreCount":123,"ThreadsPerCore":123}.',
             type=str, required=False, default=argparse.SUPPRESS)
-    parser.add_argument('--max-spot-price', help="Maximum hourly price for Spot instance target.", 
+    parser.add_argument('--max-spot-price', help="Maximum hourly price for Spot instance target. Default: On-Demand price.", 
             type=float, required=False, default=argparse.SUPPRESS)
     parser.add_argument('--volume-kms-key-id', help="Identifier (key ID, key alias, ID ARN, or alias ARN) for a Customer or AWS managed KMS Key "
             "used to encrypt the EBS volume(s). Note: You cannot specify 'aws/ebs' directly, please specify "

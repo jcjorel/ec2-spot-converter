@@ -189,6 +189,7 @@ optional arguments:
                         {"CoreCount":123,"ThreadsPerCore":123}.
   --max-spot-price MAX_SPOT_PRICE
                         Maximum hourly price for Spot instance target.
+			Default: On-Demand price.
   --volume-kms-key-id VOLUME_KMS_KEY_ID
                         Identifier (key ID, key alias, ID ARN, or alias ARN)
                         for a Customer or AWS managed KMS Key used to encrypt
