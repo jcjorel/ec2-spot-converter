@@ -1,3 +1,6 @@
+v0.8.1:
+- (Bug/Major) Conversion was failing if the conversion target type was set to 't2' instance family ('CPUOptions' handling has to be different in this case).
+
 v0.8.0:
 - (Improvment/Major) Updated recommended IAM policy to allow kms:DescribeKey.
 - (Improvment/Major) Added option --volume-kms-key-id to set the KMS Key Id to use to encrypt volumes during conversion.

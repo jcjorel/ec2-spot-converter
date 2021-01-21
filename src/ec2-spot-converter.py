@@ -222,12 +222,13 @@ def discover_instance_state():
         return (False, f"Can't convert instance {instance_id}! Termination protection activated! "
                 "Please go to AWS console and disable termination protection attribute on this instance.", {})
 
-    if "cpu_options" in args:
+    cpu_options = None
+    if "cpu_options" in args and args["cpu_options"] != "ignore":
         try:
             cpu_options = json.loads(args["cpu_options"])
             logger.info("CPU Options specified: CoreCount=%s, ThreadsPerCore=%s" % (cpu_options["CoreCount"], cpu_options["ThreadsPerCore"]))
         except Exception as e:
-            return (False, f"Failed to process '--cpu-options'! : {e}", {})
+            return (False, f"Failed to process '--cpu-options'! Must be JSON format or 'ignore' special value: {e}", {})
 
     billing_model              = args["target_billing_model"]
     instance_is_spot           = "SpotInstanceRequestId" in instance
@@ -248,9 +249,6 @@ def discover_instance_state():
             return (False, f"--max-spot-price set to a value <= 0.0", {})
 
         if instance_is_spot:
-            cpu_options = None
-            if "cpu_options" in args:
-                cpu_options = json.loads(args["cpu_options"])
             if ( not args["force"] and
                  not problematic_spot_condition and
                 ("target_instance_type" not in args or instance["InstanceType"] == args["target_instance_type"]) and 
@@ -308,6 +306,7 @@ def discover_instance_state():
             "VolumeDetails": volume_details,
             "InitialInstanceState": instance,
             "SpotRequest": spot_request,
+            "CPUOptions": cpu_options,
             "FailedStop": False,
             "StartTime": start_time,
             "StartDate": str(datetime.now(tz=timezone.utc))
@@ -334,6 +333,7 @@ def discover_instance_state():
         "VolumeDetails": volume_details,
         "InitialInstanceState": instance,
         "SpotRequest": spot_request,
+        "CPUOptions": cpu_options,
         "FailedStop": failed_stop,
         "StartTime": start_time,
         "StartDate": str(datetime.now(tz=timezone.utc))
@@ -595,13 +595,15 @@ def wait_resource_release():
     return (True, f"All resources released : {eni_ids}.", {})
 
 def create_new_instance():
-    instance     = states["InstanceStateCheckpoint"]
-    vol_details  = states["VolumeDetails"]
-    kept_blks    = states["VolumesInAMI"]
-    ami_id       = states["ImageId"]
-    elastic_gpus = states["ElasticGPUs"]
-    spot_request = states["SpotRequest"]
-    instance_id  = instance["InstanceId"]
+    instance       = states["InstanceStateCheckpoint"]
+    vol_details    = states["VolumeDetails"]
+    kept_blks      = states["VolumesInAMI"]
+    ami_id         = states["ImageId"]
+    elastic_gpus   = states["ElasticGPUs"]
+    spot_request   = states["SpotRequest"]
+    cpu_options    = states["CPUOptions"]
+    instance_id    = instance["InstanceId"]
+    instance_type  = instance["InstanceType"]
 
     # Sanity check: In case of step replay, we may have already started a new instance but did not have the time 
     #   to persist the next state machine step. We control here if the network interfaces are not already reconnected
@@ -738,15 +740,17 @@ def create_new_instance():
     # CPU Options
     if "CpuOptions" in instance:
         if "target_instance_type" in args:
-            if "cpu_options" not in args:
+            if cpu_options is None and args.get("cpu_options") != 'ignore':
                 logger.warning("--target-instance-type specified: Do not inherit 'CPU Options' from original instance and "
-                    "use instance default instead. "
+                    "use instance defaults instead. "
                     "Specify --cpu-options to define new 'CPU Options' settings.")
-        else:
+        elif args.get("cpu_options") != 'ignore':
             # Preserve CpuOptions only if we do not force the instance type
-            launch_specifications["CpuOptions"] = instance["CpuOptions"]
-    if "cpu_options" in args:
-        launch_specifications["CpuOptions"] = json.loads(args["cpu_options"])
+            instance_family = instance_type.split('.')[0]
+            if instance_family not in ["t2", "m1", "m2", "m3"]:
+                launch_specifications["CpuOptions"] = instance["CpuOptions"]
+    if cpu_options is not None:
+        launch_specifications["CpuOptions"] = cpu_options
 
     # CPU Credits
     if "CreditSpecification" in instance:
@@ -1124,7 +1128,8 @@ def main(argv):
     parser.add_argument('--ignore-hibernation-options', help="Do not copy 'HibernationOptions' on converted instance.",
             action='store_true', required=False, default=argparse.SUPPRESS)
     parser.add_argument('--cpu-options', help="Instance CPU Options JSON structure. "
-            'Format: {"CoreCount":123,"ThreadsPerCore":123}.',
+            'Format: {"CoreCount":123,"ThreadsPerCore":123}. Note: The special \'ignore\' value will force to not define the CPUOptions '
+            'structure in the new EC2 Launch specification.',
             type=str, required=False, default=argparse.SUPPRESS)
     parser.add_argument('--max-spot-price', help="Maximum hourly price for Spot instance target. Default: On-Demand price.", 
             type=float, required=False, default=argparse.SUPPRESS)
@@ -1215,8 +1220,11 @@ def main(argv):
             if prev_step_args != current_args:
                 changed_args = {}
                 for arg in current_args:
-                    if prev_step_args[arg] != current_args[arg]:
-                        changed_args[arg] = [prev_step_args[arg], current_args[arg]]
+                    if arg in prev_step_args:
+                        if prev_step_args[arg] != current_args[arg]:
+                            changed_args[arg] = [prev_step_args[arg], current_args[arg]]
+                    else:
+                        changed_args[arg] = [None, current_args[arg]]
                 logger.warning(f"/!\ WARNING /!\ Tool command line has changed compared to previous step : {{ARG:[OLD, NEW VALUE]}} => {changed_args}!")
 
         # If step already played, print the former result.
@@ -1249,7 +1257,7 @@ def main(argv):
     logger.info("Conversion successful! New instance id: %s, ElapsedTime: %s seconds" % 
             (states["NewInstanceId"], int(states["EndTime"] - states["StartTime"]))) 
 
-    if args["review_conversion_result"]:
+    if "review_conversion_result" in args and args["review_conversion_result"]:
         review_conversion_results()
 
     if "DetachedVolumes" in states and len(states["DetachedVolumes"]) and not args["reboot_if_needed"]:
