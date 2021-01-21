@@ -186,7 +186,10 @@ optional arguments:
                         instance.
   --cpu-options CPU_OPTIONS
                         Instance CPU Options JSON structure. Format:
-                        {"CoreCount":123,"ThreadsPerCore":123}.
+                        {"CoreCount":123,"ThreadsPerCore":123}. Note: The
+                        special 'ignore' value will force to not define the
+                        CPUOptions structure in the new EC2 Launch
+                        specification.
   --max-spot-price MAX_SPOT_PRICE
                         Maximum hourly price for Spot instance target.
 			Default: On-Demand price.
