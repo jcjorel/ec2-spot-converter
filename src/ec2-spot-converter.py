@@ -45,6 +45,7 @@ def configure_logging(argv):
 try:
     import boto3
     from botocore.exceptions import ClientError
+    from botocore.exceptions import NoRegionError
     from botocore.config import Config
 except:
     logger.exception("")
@@ -55,10 +56,15 @@ config = Config(
         'max_attempts': 5,
         'mode': 'standard'
     })
-ec2_client               = boto3.client("ec2",               config=config)
-dynamodb_client          = boto3.client("dynamodb",          config=config)
-elastic_inference_client = boto3.client("elastic-inference", config=config)
-kms_client               = boto3.client("kms",               config=config)
+try:
+    ec2_client               = boto3.client("ec2",               config=config)
+    dynamodb_client          = boto3.client("dynamodb",          config=config)
+    elastic_inference_client = boto3.client("elastic-inference", config=config)
+    kms_client               = boto3.client("kms",               config=config)
+except NoRegionError as e:
+    logger.error("Please specify an AWS region (either with AWS_DEFAULT_REGION environment variable or using cli profiles - see "
+            "https://docs.aws.amazon.com/cli/latest/reference/configure/)!")
+    sys.exit(1)
 
 def pprint(json_obj):
     return json.dumps(json_obj, indent=4, sort_keys=True, default=str)
