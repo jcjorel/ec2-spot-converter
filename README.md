@@ -101,7 +101,7 @@ Conversion successful! New instance id: i-06236de813ed5bacd, ElapsedTime: 112 se
 /!\ WARNING /!\ Volumes attached after boot. YOUR NEW INSTANCE MAY NEED A REBOOT!
 ```
 If the option `--review-conversion-result` is specified, at conversion end, a **VIm Diff** window pops-up and allow interactive review of the differences between
-the original now terminated instance and the newly created one: You should see differences only related to dates, AssociationIds, AMI (and storage(s) with 'DeleteOnTermination=True').
+the original now terminated instance and the newly created one: You should see differences only related to dates, Association Ids, AMI Id (and all volume Ids with 'DeleteOnTermination=True' like the Root volume).
 
 ![Result review window](review-result.png)
 
