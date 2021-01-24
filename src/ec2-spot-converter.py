@@ -61,6 +61,7 @@ try:
     dynamodb_client          = boto3.client("dynamodb",          config=config)
     elastic_inference_client = boto3.client("elastic-inference", config=config)
     kms_client               = boto3.client("kms",               config=config)
+    elbv2_client             = boto3.client("elbv2",             config=config)
 except NoRegionError as e:
     print("Please specify an AWS region (either with AWS_DEFAULT_REGION environment variable or using cli profiles - see "
             "https://docs.aws.amazon.com/cli/latest/reference/configure/)!")
@@ -305,24 +306,35 @@ def discover_instance_state():
     response       = ec2_client.describe_volumes(VolumeIds=volume_ids)
     volume_details = response["Volumes"]
 
+    # Get target group registrations
+    elb_targets    = get_elb_targets(instance_id)
+
     # 'stopped' state management.
     instance_state = instance["State"]["Name"]
-    if instance_state == "stopped":
-        return (True, "Instance already in 'stopped' state. Pre-requisite passed.", {
-            "VolumeDetails": volume_details,
-            "InitialInstanceState": instance,
-            "SpotRequest": spot_request,
-            "CPUOptions": cpu_options,
-            "FailedStop": False,
-            "StartTime": start_time,
-            "StartDate": str(datetime.now(tz=timezone.utc))
-            })
 
-    if "stop_instance" not in args:
+    if instance_state != "stopped" and "stop_instance" not in args:
         return (False, f"Instance '{instance_id}' must be in 'stopped' state (current={instance_state}) ! Use --stop-instance if you want to stop it.", {})
 
+    return (True, f"Instance is in state {instance_state}...", {
+        "VolumeDetails": volume_details,
+        "ELBTargets": elb_targets,
+        "InitialInstanceState": instance,
+        "SpotRequest": spot_request,
+        "CPUOptions": cpu_options,
+        "StartTime": start_time,
+        "StartDate": str(datetime.now(tz=timezone.utc))
+        })
+
+def stop_instance():
+    instance       = states["InitialInstanceState"]
+    instance_id    = instance["InstanceId"]
+    instance_state = instance["State"]["Name"]
+
+    if instance_state == "stopped":
+        return (True, "Instance already in 'stopped' state. Pre-requisite passed.", {})
+
     failed_stop = False
-    msg         = f"{instance_state} is in state {instance_state}..."
+    msg         = f"Instance is in state {instance_state}..."
     if instance_state in ["pending", "running"]:
         try:
             msg = f"Stopping '{instance_id}'..."
@@ -331,24 +343,15 @@ def discover_instance_state():
             error_code = e.response['Error']['Code']
             if args["do_not_require_stopped_instance"] and error_code == 'IncorrectSpotRequestState':
                 msg = str(f"Received an Exception {error_code} while attempting to stop instance. Continue anyway with the running instance as "
-                            "--do-not-require-stopped-state option is set.")
+                    "--do-not-require-stopped-state option is set.")
                 failed_stop = True
             else:
                 raise e
-    return (True, msg, {
-        "VolumeDetails": volume_details,
-        "InitialInstanceState": instance,
-        "SpotRequest": spot_request,
-        "CPUOptions": cpu_options,
-        "FailedStop": failed_stop,
-        "StartTime": start_time,
-        "StartDate": str(datetime.now(tz=timezone.utc))
-        })
+    return (True, msg, {"FailedStop": failed_stop})
 
 def wait_stop_instance():
     failed_stop    = states["FailedStop"]
     instance       = states["InitialInstanceState"]
-    instance_id    = instance["InstanceId"]
     instance_state = instance["State"]["Name"]
     max_attempts   = 100
     while not failed_stop and instance_state != "stopped":
@@ -550,6 +553,82 @@ def instance_state_checkpoint():
         "InstanceStateCheckpoint": get_instance_details(),
         "ElasticGPUs": elastic_gpus
         })
+
+def get_elb_targets(instance_id):
+    response     = elbv2_client.describe_target_groups()
+    logger.debug(response)
+    targets = []
+    for target_group in response["TargetGroups"]:
+        if target_group["TargetType"] != "instance": continue
+        target_group_arn = target_group["TargetGroupArn"]
+        # Skipped filter by instance id, because if it exsist multiple times (with multiple ports) only one of them will
+        # be returned
+        health_response = elbv2_client.describe_target_health(TargetGroupArn=target_group_arn)
+        logger.debug(health_response)
+        for target_response in health_response["TargetHealthDescriptions"]:
+            if target_response["Target"]["Id"] != instance_id or target_response["TargetHealth"]["State"] == "unused": continue
+            target = dict(target_response["Target"])
+            del target["Id"]
+            target["TargetGroupArn"] = target_group_arn
+            targets.append(target)
+    return targets
+
+def deregister_from_elb_target_groups():
+    if "ELBTargets" not in states:
+        return (True, f"No ELB targets to deregister", {})
+    targets      = states["ELBTargets"]
+    instance     = states["InitialInstanceState"]
+    instance_id  = instance["InstanceId"]
+    for target in targets:
+        target_group_arn = target["TargetGroupArn"]
+        target_port = target["Port"]
+        logger.info(f"Deregistering from ELB target group {target_group_arn}... (port={target_port})")
+        # Doesn't throw if not registered at this point
+        elbv2_client.deregister_targets(TargetGroupArn=target_group_arn, Targets=[{
+            "Id": instance_id,
+            "Port": target_port
+        }])
+    return (True, f"Deregistered ELB targets", {})
+
+def drain_elb_target_groups():
+    if "ELBTargets" not in states:
+        return (True, f"No ELB targets to deregister", {})
+    targets      = states["ELBTargets"]
+    instance     = states["InitialInstanceState"]
+    instance_id  = instance["InstanceId"]
+    for target in targets:
+        target_group_arn = target["TargetGroupArn"]
+        target_port = target["Port"]
+        max_attempts = 100
+        while True:
+            response = elbv2_client.describe_target_health(TargetGroupArn=target_group_arn, Targets=[{
+                "Id": instance_id,
+                "Port": target_port
+            }])
+            found_targets = list(filter(lambda t: t["TargetHealth"]["State"] != "unused", response["TargetHealthDescriptions"]))
+            if len(found_targets) == 0: break
+            logger.info(f"Waiting for ELB target group {target_group_arn} to drain connections to instance... (port={target_port})")
+            time.sleep(15)
+            max_attempts -= 1
+            if max_attempts < 0:
+                return (False, "Timeout while waiting for ELB targets draining!", {})
+    return (True, f"Drained ELB targets", {})
+
+def register_to_elb_target_groups():
+    if "ELBTargets" not in states:
+        return (True, f"No ELB targets to deregister", {})
+    targets     = states["ELBTargets"]
+    instance_id = states["NewInstanceId"]
+    for target in targets:
+        target_group_arn = target["TargetGroupArn"]
+        target_port = target["Port"]
+        logger.info(f"Registering to ELB target group {target_group_arn}... (port={target_port})")
+        # Doesn't throw if already registered at this point
+        elbv2_client.register_targets(TargetGroupArn=target_group_arn, Targets=[{
+            "Id": instance_id,
+            "Port": target_port
+        }])
+    return (True, f"Successfully registered ELB targets", {})
 
 def terminate_instance():
     instance    = states["InstanceStateCheckpoint"]
@@ -963,6 +1042,24 @@ steps = [
         "Description": "Discover instance state (and stop instance if requested by --stop-instance)..."
     },
     {
+        "Name": "deregister_from_elb_target_groups",
+        "PrettyName": "DeregisterFromElbTargetGroups",
+        "Function": deregister_from_elb_target_groups,
+        "Description": "Deregister from ELB target groups.."
+    },
+    {
+        "Name": "drain_elb_target_groups",
+        "PrettyName": "DrainElbTargetGroups",
+        "Function": drain_elb_target_groups,
+        "Description": "Wait for drainage of ELB targets.."
+    },
+    {
+        "Name" : "stop_instance",
+        "PrettyName" : "StopInstance",
+        "Function": stop_instance,
+        "Description": "Stop the instance..."
+    },
+    {
         "Name" : "wait_stop_instance",
         "PrettyName" : "WaitStopInstance",
         "Function": wait_stop_instance,
@@ -1051,6 +1148,12 @@ steps = [
         "PrettyName" : "ManageElasticIP",
         "Function": manage_elastic_ip,
         "Description": "Manage Elastic IP..."
+    },
+    {
+        "Name": "register_to_elb_target_groups",
+        "PrettyName": "RegisterToElbTargetGroups",
+        "Function": register_to_elb_target_groups,
+        "Description": "Register to ELB target groups.."
     },
     {
         "Name" : "reboot_if_needed",
