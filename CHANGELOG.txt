@@ -1,3 +1,6 @@
+v0.8.2:
+- (Bug/Minor) Give user guidance when AWS region can not be guessed. (GitHub Issue #2]
+
 v0.8.1:
 - (Bug/Major) Conversion was failing if the conversion target type was set to 't2' instance family ('CPUOptions' handling has to be different in this case).
 
