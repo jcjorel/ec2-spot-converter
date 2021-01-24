@@ -62,7 +62,7 @@ try:
     elastic_inference_client = boto3.client("elastic-inference", config=config)
     kms_client               = boto3.client("kms",               config=config)
 except NoRegionError as e:
-    logger.error("Please specify an AWS region (either with AWS_DEFAULT_REGION environment variable or using cli profiles - see "
+    print("Please specify an AWS region (either with AWS_DEFAULT_REGION environment variable or using cli profiles - see "
             "https://docs.aws.amazon.com/cli/latest/reference/configure/)!")
     sys.exit(1)
 
