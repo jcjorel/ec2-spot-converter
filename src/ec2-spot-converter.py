@@ -1358,8 +1358,14 @@ def main(argv):
 
         # Warn the user when command line has changed between invocation
         if i > 0 and "ConversionStepCmdLineArgs" in states:
-            prev_step_name = steps[i-1]["Name"]
-            prev_step_args = states["ConversionStepCmdLineArgs"][prev_step_name] 
+            prev_step_index = i-1
+            prev_step       = steps[prev_step_index]
+            # If previous step was skipped, compare to the one before it
+            while "IfArgs" in prev_step and not args[prev_step["IfArgs"]]:
+                prev_step_index = prev_step_index - 1
+                prev_step       = steps[prev_step_index]
+            prev_step_name = prev_step["Name"]
+            prev_step_args = states["ConversionStepCmdLineArgs"][prev_step_name]
             current_args   = args if display_status == "" else states["ConversionStepCmdLineArgs"][steps[i]["Name"]]
             if prev_step_args != current_args:
                 changed_args = {}
