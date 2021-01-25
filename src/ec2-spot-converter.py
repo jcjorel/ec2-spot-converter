@@ -19,6 +19,7 @@ import time
 import tempfile
 from collections import defaultdict
 from datetime import datetime, timezone
+import pdb
 
 # Configure logging
 import logging
@@ -550,44 +551,61 @@ def instance_state_checkpoint():
         })
 
 def get_elb_targets(instance_id):
-    response = elbv2_client.describe_target_groups()
-    targets  = []
-    logger.debug(response)
-    for target_group in response["TargetGroups"]:
+    if "check_targetgroups" not in args:
+        return None
+    targetgroup_args  = args["check_targetgroups"] if args["check_targetgroups"][0] != "*" else None
+    paginator         = elbv2_client.get_paginator('describe_target_groups')
+    response_iterator = paginator.paginate(
+        TargetGroupArns  = targetgroup_args,
+        PaginationConfig = {
+            'MaxItems': 1000,
+            'PageSize': 200
+        })
+    targetgroups = []
+    for response in response_iterator:
+        logger.debug(response)
+        targetgroups.extend(response["TargetGroups"])
+
+    nb_of_targetgroups = len(targetgroups)
+    logger.info(f"{nb_of_targetgroups} targetgroups will be inspected for possible instance membership. "
+            "Note: A large number of targetgroups could take a lots of time to processs.")
+
+    targets      = []
+    for target_group in targetgroups:
         if target_group["TargetType"] != "instance": continue
         target_group_arn = target_group["TargetGroupArn"]
-        # Skipped filter by instance id, because if it exsist multiple times (with multiple ports) only one of them will
+        # Skipped filter by instance id, because if it exists multiple times (with multiple ports) only one of them will
         # be returned
         health_response = elbv2_client.describe_target_health(TargetGroupArn=target_group_arn)
         logger.debug(health_response)
         for target_response in health_response["TargetHealthDescriptions"]:
-            if target_response["Target"]["Id"] != instance_id or target_response["TargetHealth"]["State"] == "unused": continue
+            if target_response["Target"]["Id"] != instance_id: continue
             target                   = dict(target_response["Target"])
             target["TargetGroupArn"] = target_group_arn
             del target["Id"]
             targets.append(target)
     return targets
 
-def deregister_from_elb_target_groups():
+def deregister_from_target_groups():
     if "ELBTargets" not in states:
-        return (True, f"No ELB targets to deregister", {})
+        return (True, f"No TargetGroup to deregister from", {})
     targets      = states["ELBTargets"]
     instance     = states["InitialInstanceState"]
     instance_id  = instance["InstanceId"]
     for target in targets:
         target_group_arn = target["TargetGroupArn"]
         target_port      = target["Port"]
-        logger.info(f"Deregistering from ELB target group {target_group_arn}... (port={target_port})")
+        logger.info(f"Deregistering from TargetGroup {target_group_arn}... (port={target_port})")
         # Doesn't throw if not registered at this point
         elbv2_client.deregister_targets(TargetGroupArn=target_group_arn, Targets=[{
             "Id": instance_id,
             "Port": target_port
         }])
-    return (True, f"Deregistered ELB targets", {})
+    return (True, f"Deregistered instance from TargetGroups.", {})
 
 def drain_elb_target_groups():
     if "ELBTargets" not in states:
-        return (True, f"No ELB targets to drain", {})
+        return (True, f"No TargetGroup to drain from", {})
     targets      = states["ELBTargets"]
     instance     = states["InitialInstanceState"]
     instance_id  = instance["InstanceId"]
@@ -603,32 +621,33 @@ def drain_elb_target_groups():
             logger.debug(response)
             found_targets = list(filter(lambda t: t["TargetHealth"]["State"] != "unused", response["TargetHealthDescriptions"]))
             if len(found_targets) == 0: break
-            logger.info(f"Waiting for ELB target group {target_group_arn} to drain connections to instance... (port={target_port})")
+            logger.info(f"Waiting for instance to be drained from TargetGroup {target_group_arn}... (port={target_port})")
             time.sleep(15)
             max_attempts -= 1
             if max_attempts < 0:
-                return (False, "Timeout while waiting for ELB targets draining!", {})
-    return (True, f"Drained ELB targets", {})
+                return (False, "Timeout while waiting for target draining!", {})
+    targetgroup_arns = [t["TargetGroupArn"] for t in targets]
+    return (True, f"Drained instance from TargetGroups {targetgroup_arns}.", {})
 
 def register_to_elb_target_groups():
     if "ELBTargets" not in states:
-        return (True, f"No ELB targets to register", {})
+        return (True, f"No TargetGroup to register to.", {})
     targets     = states["ELBTargets"]
     instance_id = states["NewInstanceId"]
     for target in targets:
         target_group_arn = target["TargetGroupArn"]
         target_port      = target["Port"]
-        logger.info(f"Registering to ELB target group {target_group_arn}... (port={target_port})")
+        logger.info(f"Registering to TargetGroup {target_group_arn}... (port={target_port})")
         # Doesn't throw if already registered at this point
         elbv2_client.register_targets(TargetGroupArn=target_group_arn, Targets=[{
             "Id": instance_id,
             "Port": target_port
         }])
-    return (True, f"Successfully registered ELB targets", {})
+    return (True, f"Successfully registered instance '{instance_id}' in TargetGroups.", {})
 
-def wait_elb_target_groups():
+def wait_target_groups():
     if "ELBTargets" not in states:
-        return (True, f"No ELB targets to wait for", {})
+        return (True, f"No TargetGroup to wait for instance status.", {})
     targets      = states["ELBTargets"]
     instance_id  = states["NewInstanceId"]
     for target in targets:
@@ -641,14 +660,14 @@ def wait_elb_target_groups():
                 "Port": target_port
             }])
             logger.debug(response)
-            found_targets = list(filter(lambda t: t["TargetHealth"]["State"] == "healthy", response["TargetHealthDescriptions"]))
+            found_targets = list(filter(lambda t: t["TargetHealth"]["State"] in ["unused", "healthy"], response["TargetHealthDescriptions"]))
             if len(found_targets) == 1: break
-            logger.info(f"Waiting for instance status in ELB target group {target_group_arn} to be healthy... (port={target_port})")
+            logger.info(f"Waiting for instance status in TargetGroup {target_group_arn} to be healthy... (port={target_port})")
             time.sleep(15)
             max_attempts -= 1
             if max_attempts < 0:
-                return (False, "Timeout while waiting for ELB targets to become healthy!", {})
-    return (True, f"ELB targets are healthy", {})
+                return (False, "Timeout while waiting for instance to become healthy!", {})
+    return (True, f"Instance '{instance_id}' is healthy in participating TargetGroups.", {})
 
 def terminate_instance():
     instance    = states["InstanceStateCheckpoint"]
@@ -1058,20 +1077,21 @@ steps = [
         "Name" : "discover_instance_state",
         "PrettyName" : "DiscoverInstanceState",
         "Function": discover_instance_state,
-        "Description": "Discover instance state (and stop instance if requested by --stop-instance)..."
+        "Description": "Discover instance state..."
     },
     {
-        "Name": "deregister_from_elb_target_groups",
-        "PrettyName": "DeregisterFromElbTargetGroups",
-        "Function": deregister_from_elb_target_groups,
-        "Description": "Deregister from ELB target groups.."
+        "Name": "deregister_from_target_groups",
+        "IfArgs": "check_targetgroups",
+        "PrettyName": "DeregisterFromTargetGroups",
+        "Function": deregister_from_target_groups,
+        "Description": "Deregister from ELB target groups..."
     },
     {
         "Name": "drain_elb_target_groups",
-        "IfNotArgs": "skip_elb_drain",
+        "IfArgs": "check_targetgroups",
         "PrettyName": "DrainElbTargetGroups",
         "Function": drain_elb_target_groups,
-        "Description": "Wait for drainage of ELB targets.."
+        "Description": "Wait for drainage of ELB targets..."
     },
     {
         "Name" : "stop_instance",
@@ -1171,6 +1191,7 @@ steps = [
     },
     {
         "Name": "register_to_elb_target_groups",
+        "IfArgs": "check_targetgroups",
         "PrettyName": "RegisterToElbTargetGroups",
         "Function": register_to_elb_target_groups,
         "Description": "Register to ELB target groups.."
@@ -1188,19 +1209,19 @@ steps = [
         "Description": "Untag resources..."
     },
     {
+        "Name" : "wait_target_groups",
+        "IfArgs": "wait_for_tg_health",
+        "PrettyName" : "WaitTargetGroups",
+        "Function": wait_target_groups,
+        "Description": "Waiting for instance to be healthy in TargetGroups..."
+    },
+    {
         "Name" : "deregister_image",
         "IfArgs": "delete_ami",
         "PrettyName" : "DeregisterImage",
         "Function": deregister_image,
         "Description": "Deregister image..."
     },
-    {
-        "Name" : "wait_elb_target_groups",
-        "IfArgs": "wait_for_elb_health",
-        "PrettyName" : "WaitElbTargetGroups",
-        "Function": wait_elb_target_groups,
-        "Description": "Waiting for ELB targets to be healthy..."
-    }
 ]
 
 def review_conversion_results():
@@ -1231,9 +1252,6 @@ default_args = {
         "dynamodb_tablename": "ec2-spot-converter-state-table",
         "target_billing_model": "spot",
         "reboot_if_needed": False,
-        "delete_ami": False,
-        "wait_for_elb_health": False,
-        "skip_elb_drain": False,
         "force": False,
         "ignore_userdata": False,
         "ignore_hibernation_options": False,
@@ -1282,9 +1300,11 @@ def main(argv):
             action='store_true', required=False, default=argparse.SUPPRESS)
     parser.add_argument('--delete-ami', help="Delete AMI at end of conversion.", 
             action='store_true', required=False, default=argparse.SUPPRESS)
-    parser.add_argument('--skip-elb-drain', help="Skip draining connection of ELB target before stopping the instnace.",
-            action='store_true', required=False, default=argparse.SUPPRESS)
-    parser.add_argument('--wait-for-elb-health', help="Wait for ELB target registration to be healthy at end of conversion.",
+    parser.add_argument('--check-targetgroups', help="List of TargetGroup ARNs to look for instance membership. Wildcard '*' means all "
+            "TargetGroups in the current account and region (WARNING: An account can contain up to 3000 TargetGroups) "
+            "Default: None (means no TargetGroup membership assesment by default)",
+            nargs='+', required=False, default=argparse.SUPPRESS)
+    parser.add_argument('--wait-for-tg-health', help="Wait for TargetGroup registration to be healthy at end of conversion.",
             action='store_true', required=False, default=argparse.SUPPRESS)
     parser.add_argument('--do-not-require-stopped-instance', help="Allow instance conversion while instance is in 'running' state. (NOT RECOMMENDED)", 
             action='store_true', required=False, default=argparse.SUPPRESS)
@@ -1313,7 +1333,7 @@ def main(argv):
     for a in default_args:
         if a not in args or args[a] is None: args[a] = default_args[a]
 
-    LOG_LEVEL=logging.DEBUG if "debug" in args else logging.INFO
+    LOG_LEVEL=logging.DEBUG if args["debug"] else logging.INFO
     configure_logging(argv)
 
     if "generate_dynamodb_table" in cmdargs:
@@ -1343,11 +1363,11 @@ def main(argv):
     for i in range(0, len(steps)):
         step      = steps[i]
         step_name = step["Name"]
-        if "IfArgs" in step and not args[step["IfArgs"]]:
+        if "IfArgs" in step and args.get(step["IfArgs"]) is None:
             logger.info(f"[STEP %d/%d] %s => SKIPPED! Need '--%s' argument." % 
                     (i + 1, len(steps), step["Description"], step["IfArgs"].replace("_","-")))
             continue
-        if "IfNotArgs" in step and args[step["IfNotArgs"]]:
+        if "IfNotArgs" in step and args.get(step["IfNotArgs"]) is not None:
             logger.info(f"[STEP %d/%d] %s => SKIPPED! Remove '--%s' argument." %
                     (i + 1, len(steps), step["Description"], step["IfNotArgs"].replace("_","-")))
             continue
@@ -1364,7 +1384,7 @@ def main(argv):
             prev_step_index = i-1
             prev_step       = steps[prev_step_index]
             # If previous step was skipped, compare to the one before it
-            while ("IfArgs" in prev_step and not args[prev_step["IfArgs"]]) or ("IfNotArgs" in step and args[step["IfNotArgs"]]):
+            while ("IfArgs" in prev_step and args.get(prev_step["IfArgs"]) is None) or ("IfNotArgs" in step and args.get(step["IfNotArgs"]) is not None):
                 prev_step_index = prev_step_index - 1
                 prev_step       = steps[prev_step_index]
             prev_step_name = prev_step["Name"]
