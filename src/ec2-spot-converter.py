@@ -1074,6 +1074,7 @@ steps = [
     },
     {
         "Name": "drain_elb_target_groups",
+        "IfNotArgs": "skip_elb_drain",
         "PrettyName": "DrainElbTargetGroups",
         "Function": drain_elb_target_groups,
         "Description": "Wait for drainage of ELB targets.."
@@ -1238,6 +1239,7 @@ default_args = {
         "reboot_if_needed": False,
         "delete_ami": False,
         "wait_for_elb_health": False,
+        "skip_elb_drain": False,
         "force": False,
         "ignore_userdata": False,
         "ignore_hibernation_options": False,
@@ -1284,6 +1286,8 @@ def main(argv):
     parser.add_argument('--reboot-if-needed', help="Reboot the new instance if needed.", 
             action='store_true', required=False, default=argparse.SUPPRESS)
     parser.add_argument('--delete-ami', help="Delete AMI at end of conversion.", 
+            action='store_true', required=False, default=argparse.SUPPRESS)
+    parser.add_argument('--skip-elb-drain', help="Skip draining connection of ELB target before stopping the instnace.",
             action='store_true', required=False, default=argparse.SUPPRESS)
     parser.add_argument('--wait-for-elb-health', help="Wait for ELB target registration to be healthy at end of conversion.",
             action='store_true', required=False, default=argparse.SUPPRESS)
@@ -1348,6 +1352,10 @@ def main(argv):
             logger.info(f"[STEP %d/%d] %s => SKIPPED! Need '--%s' argument." % 
                     (i + 1, len(steps), step["Description"], step["IfArgs"].replace("_","-")))
             continue
+        if "IfNotArgs" in step and args[step["IfNotArgs"]]:
+            logger.info(f"[STEP %d/%d] %s => SKIPPED! Remove '--%s' argument." %
+                    (i + 1, len(steps), step["Description"], step["IfNotArgs"].replace("_","-")))
+            continue
         display_status = ""
         if "ConversionStep" in states:
             current_step=states["ConversionStep"]
@@ -1361,7 +1369,7 @@ def main(argv):
             prev_step_index = i-1
             prev_step       = steps[prev_step_index]
             # If previous step was skipped, compare to the one before it
-            while "IfArgs" in prev_step and not args[prev_step["IfArgs"]]:
+            while ("IfArgs" in prev_step and not args[prev_step["IfArgs"]]) or ("IfNotArgs" in step and args[step["IfNotArgs"]]):
                 prev_step_index = prev_step_index - 1
                 prev_step       = steps[prev_step_index]
             prev_step_name = prev_step["Name"]

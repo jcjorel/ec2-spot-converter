@@ -159,7 +159,7 @@ usage: ec2-spot-converter-v0.8.0 [-h] -i INSTANCE_ID [-m {spot,on-demand}]
                                  [--max-spot-price MAX_SPOT_PRICE]
                                  [--volume-kms-key-id VOLUME_KMS_KEY_ID] [-s]
                                  [--reboot-if-needed] [--delete-ami]
-                                 [--wait-for-elb-health]
+                                 [--skip-elb-drain] [--wait-for-elb-health]
                                  [--do-not-require-stopped-instance] [-r]
                                  [--dynamodb-tablename DYNAMODB_TABLENAME]
                                  [--generate-dynamodb-table] [-f]
@@ -205,6 +205,8 @@ optional arguments:
                         'running' state.
   --reboot-if-needed    Reboot the new instance if needed.
   --delete-ami          Delete AMI at end of conversion.
+  --skip-elb-drain      Skip draining connection of ELB target before stopping
+                        the instnace.
   --wait-for-elb-health
                         Wait for ELB target registration to be healthy at end
                         of conversion.
