@@ -330,10 +330,10 @@ def stop_instance():
     instance_id    = instance["InstanceId"]
     instance_state = instance["State"]["Name"]
 
-    if instance_state == "stopped":
-        return (True, "Instance already in 'stopped' state. Pre-requisite passed.", {})
-
     failed_stop = False
+    if instance_state == "stopped":
+        return (True, "Instance already in 'stopped' state. Pre-requisite passed.", {"FailedStop": failed_stop})
+
     msg         = f"Instance is in state {instance_state}..."
     if instance_state in ["pending", "running"]:
         try:
