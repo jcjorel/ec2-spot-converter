@@ -117,7 +117,7 @@ The operation is similar to the Spot model conversion with the difference that t
 yet possible "in-place" through an AWS EC2 API so the tool will terminate and replace the Spot instance preserving all attributes but
 updating the instance type (or CPU options) during the process.
 
-Specify options `--instance-type` and/or `--cpu-options`on an existing Spot instance to start conversion. 
+Specify options `--target-instance-type` and/or `--cpu-options`on an existing Spot instance to start conversion. 
 
 ### Fix Spot instance with 'IncorrectSpotRequestState Exception'
 
