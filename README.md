@@ -2,7 +2,7 @@
 
 This tool converts existing AWS EC2 instances back and forth between On-Demand and 'persistent' Spot billing models while preserving
 instance attributes (Launch configuration, Tags..), network attributes (existing Private IP addresses, Elastic IP), storage (Volumes),
-Elastic Inference accelerators and Elastic GPUs.
+Elastic Inference accelerators, ELB Target Groups instance registrations and Elastic GPUs.
 
 Others features:
 * Can also perform **Spot-to-Spot** and **OnDemand-to-OnDemand** conversions:
@@ -159,6 +159,7 @@ usage: ec2-spot-converter-v0.8.0 [-h] -i INSTANCE_ID [-m {spot,on-demand}]
                                  [--max-spot-price MAX_SPOT_PRICE]
                                  [--volume-kms-key-id VOLUME_KMS_KEY_ID] [-s]
                                  [--reboot-if-needed] [--delete-ami]
+                                 [--wait-for-elb-health]
                                  [--do-not-require-stopped-instance] [-r]
                                  [--dynamodb-tablename DYNAMODB_TABLENAME]
                                  [--generate-dynamodb-table] [-f]
@@ -192,7 +193,7 @@ optional arguments:
                         specification.
   --max-spot-price MAX_SPOT_PRICE
                         Maximum hourly price for Spot instance target.
-			Default: On-Demand price.
+                        Default: On-Demand price.
   --volume-kms-key-id VOLUME_KMS_KEY_ID
                         Identifier (key ID, key alias, ID ARN, or alias ARN)
                         for a Customer or AWS managed KMS Key used to encrypt
@@ -204,6 +205,9 @@ optional arguments:
                         'running' state.
   --reboot-if-needed    Reboot the new instance if needed.
   --delete-ami          Delete AMI at end of conversion.
+  --wait-for-elb-health
+                        Wait for ELB target registration to be healthy at end
+                        of conversion.
   --do-not-require-stopped-instance
                         Allow instance conversion while instance is in
                         'running' state. (NOT RECOMMENDED)

@@ -555,9 +555,9 @@ def instance_state_checkpoint():
         })
 
 def get_elb_targets(instance_id):
-    response     = elbv2_client.describe_target_groups()
+    response = elbv2_client.describe_target_groups()
+    targets  = []
     logger.debug(response)
-    targets = []
     for target_group in response["TargetGroups"]:
         if target_group["TargetType"] != "instance": continue
         target_group_arn = target_group["TargetGroupArn"]
@@ -567,9 +567,9 @@ def get_elb_targets(instance_id):
         logger.debug(health_response)
         for target_response in health_response["TargetHealthDescriptions"]:
             if target_response["Target"]["Id"] != instance_id or target_response["TargetHealth"]["State"] == "unused": continue
-            target = dict(target_response["Target"])
-            del target["Id"]
+            target                   = dict(target_response["Target"])
             target["TargetGroupArn"] = target_group_arn
+            del target["Id"]
             targets.append(target)
     return targets
 
@@ -581,7 +581,7 @@ def deregister_from_elb_target_groups():
     instance_id  = instance["InstanceId"]
     for target in targets:
         target_group_arn = target["TargetGroupArn"]
-        target_port = target["Port"]
+        target_port      = target["Port"]
         logger.info(f"Deregistering from ELB target group {target_group_arn}... (port={target_port})")
         # Doesn't throw if not registered at this point
         elbv2_client.deregister_targets(TargetGroupArn=target_group_arn, Targets=[{
@@ -592,19 +592,20 @@ def deregister_from_elb_target_groups():
 
 def drain_elb_target_groups():
     if "ELBTargets" not in states:
-        return (True, f"No ELB targets to deregister", {})
+        return (True, f"No ELB targets to drain", {})
     targets      = states["ELBTargets"]
     instance     = states["InitialInstanceState"]
     instance_id  = instance["InstanceId"]
     for target in targets:
         target_group_arn = target["TargetGroupArn"]
-        target_port = target["Port"]
+        target_port  = target["Port"]
         max_attempts = 100
         while True:
             response = elbv2_client.describe_target_health(TargetGroupArn=target_group_arn, Targets=[{
                 "Id": instance_id,
                 "Port": target_port
             }])
+            logger.debug(response)
             found_targets = list(filter(lambda t: t["TargetHealth"]["State"] != "unused", response["TargetHealthDescriptions"]))
             if len(found_targets) == 0: break
             logger.info(f"Waiting for ELB target group {target_group_arn} to drain connections to instance... (port={target_port})")
@@ -616,12 +617,12 @@ def drain_elb_target_groups():
 
 def register_to_elb_target_groups():
     if "ELBTargets" not in states:
-        return (True, f"No ELB targets to deregister", {})
+        return (True, f"No ELB targets to register", {})
     targets     = states["ELBTargets"]
     instance_id = states["NewInstanceId"]
     for target in targets:
         target_group_arn = target["TargetGroupArn"]
-        target_port = target["Port"]
+        target_port      = target["Port"]
         logger.info(f"Registering to ELB target group {target_group_arn}... (port={target_port})")
         # Doesn't throw if already registered at this point
         elbv2_client.register_targets(TargetGroupArn=target_group_arn, Targets=[{
@@ -629,6 +630,30 @@ def register_to_elb_target_groups():
             "Port": target_port
         }])
     return (True, f"Successfully registered ELB targets", {})
+
+def wait_elb_target_groups():
+    if "ELBTargets" not in states:
+        return (True, f"No ELB targets to wait for", {})
+    targets      = states["ELBTargets"]
+    instance_id  = states["NewInstanceId"]
+    for target in targets:
+        target_group_arn = target["TargetGroupArn"]
+        target_port      = target["Port"]
+        max_attempts     = 100
+        while True:
+            response = elbv2_client.describe_target_health(TargetGroupArn=target_group_arn, Targets=[{
+                "Id": instance_id,
+                "Port": target_port
+            }])
+            logger.debug(response)
+            found_targets = list(filter(lambda t: t["TargetHealth"]["State"] == "healthy", response["TargetHealthDescriptions"]))
+            if len(found_targets) == 1: break
+            logger.info(f"Waiting for instance status in ELB target group {target_group_arn} to be healthy... (port={target_port})")
+            time.sleep(15)
+            max_attempts -= 1
+            if max_attempts < 0:
+                return (False, "Timeout while waiting for ELB targets to become healthy!", {})
+    return (True, f"ELB targets are healthy", {})
 
 def terminate_instance():
     instance    = states["InstanceStateCheckpoint"]
@@ -1173,6 +1198,13 @@ steps = [
         "PrettyName" : "DeregisterImage",
         "Function": deregister_image,
         "Description": "Deregister image..."
+    },
+    {
+        "Name" : "wait_elb_target_groups",
+        "IfArgs": "wait_for_elb_health",
+        "PrettyName" : "WaitElbTargetGroups",
+        "Function": wait_elb_target_groups,
+        "Description": "Waiting for ELB targets to be healthy..."
     }
 ]
 
@@ -1205,6 +1237,7 @@ default_args = {
         "target_billing_model": "spot",
         "reboot_if_needed": False,
         "delete_ami": False,
+        "wait_for_elb_health": False,
         "force": False,
         "ignore_userdata": False,
         "ignore_hibernation_options": False,
@@ -1251,6 +1284,8 @@ def main(argv):
     parser.add_argument('--reboot-if-needed', help="Reboot the new instance if needed.", 
             action='store_true', required=False, default=argparse.SUPPRESS)
     parser.add_argument('--delete-ami', help="Delete AMI at end of conversion.", 
+            action='store_true', required=False, default=argparse.SUPPRESS)
+    parser.add_argument('--wait-for-elb-health', help="Wait for ELB target registration to be healthy at end of conversion.",
             action='store_true', required=False, default=argparse.SUPPRESS)
     parser.add_argument('--do-not-require-stopped-instance', help="Allow instance conversion while instance is in 'running' state. (NOT RECOMMENDED)", 
             action='store_true', required=False, default=argparse.SUPPRESS)
