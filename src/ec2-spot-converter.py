@@ -19,11 +19,10 @@ import time
 import tempfile
 from collections import defaultdict
 from datetime import datetime, timezone
-import pdb
 
 # Configure logging
 import logging
-from logging import handlers
+
 LOG_LEVEL = logging.INFO
 logger = None
 def configure_logging(argv):
@@ -157,7 +156,6 @@ def read_state_table():
         Key=query
         )
     logger.debug(response)
-    states = defaultdict(str)
     if "Item" not in response:
         return (True, f"Record '{jobid}' doesn't exist yet.", {
             "JobId": jobid
@@ -240,7 +238,6 @@ def discover_instance_state():
     billing_model              = args["target_billing_model"]
     instance_is_spot           = "SpotInstanceRequestId" in instance
     spot_request               = {}
-    spot_request_state         = None
     problematic_spot_condition = False
     if instance_is_spot:
         spot_request_id = instance["SpotInstanceRequestId"]
@@ -389,7 +386,6 @@ def tag_all_resources():
 
 def detach_volumes():
     instance    = states["ConversionStartInstanceState"]
-    vol_details = states["VolumeDetails"]
     root_device = instance["RootDeviceName"]
     instance_id = instance["InstanceId"]
 
@@ -409,7 +405,7 @@ def detach_volumes():
         multi_attached   = vol_detail["MultiAttachEnabled"]
         if volume_state == "in-use" and stilled_attached is not None:
             logger.info(f"Detaching volume {vol}... (volume state='{volume_state}', multi-attached='{multi_attached}')")
-            response = ec2_client.detach_volume(Device=blk["DeviceName"], InstanceId=instance_id, VolumeId=vol)
+            ec2_client.detach_volume(Device=blk["DeviceName"], InstanceId=instance_id, VolumeId=vol)
         else:
             # Can happen if the tool has been interrupted and is replayed to redo the step.
             if stilled_attached is None:
@@ -500,7 +496,6 @@ def create_ami():
 
 def prepare_network_interfaces():
     instance    = states["WithoutExtraVolumesInstanceState"]
-    instance_id = instance["InstanceId"]
 
     for eni in instance["NetworkInterfaces"]:
         eni_id   = eni["NetworkInterfaceId"]
@@ -741,7 +736,7 @@ def create_new_instance():
     if len(eni_instance_ids) > 0:
         if len(eni_attached_ids) == len(eni_ids) and len(eni_instance_ids) == 1:
             new_instance_id = eni_instance_ids[0]
-            # Beyond the reasonnable doubt... A new instance succeeded to attach the interface(s).
+            # Beyond the reasonable doubt... A new instance succeeded to attach the interface(s).
             return (True, f"Recovered new instance '{new_instance_id}' from previous execution!", {
                 "NewInstanceId": new_instance_id,
                 })
@@ -941,7 +936,7 @@ def reattach_volumes():
         blk         = next(filter(lambda v: v["Ebs"]["VolumeId"] == vol, orig_instance["BlockDeviceMappings"]), None)
         device_name = blk["DeviceName"]
         logger.info(f"Attaching volume {vol} to {instance_id} with device name {device_name}...")
-        response = ec2_client.attach_volume(
+        ec2_client.attach_volume(
             Device=device_name,
             InstanceId=instance_id,
             VolumeId=vol)
@@ -971,7 +966,6 @@ def configure_network_interfaces():
 
 def manage_elastic_ip():
     instance          = states["InitialInstanceState"]
-    instance_id       = states["NewInstanceId"]
     response          = ec2_client.describe_addresses()
     eips              = response["Addresses"]
     reassociated_eips = []
@@ -1250,6 +1244,7 @@ default_args = {
 
 def main(argv):
     global args
+    global LOG_LEVEL
     if "--version" in argv or "-v" in argv:
         print(f"{VERSION} ({RELEASE_DATE})")
         return 0
@@ -1341,7 +1336,7 @@ def main(argv):
             set_state("ConversionStep", step_names[expected_step-1])
             return 0
         else:
-            log.error("Expected state can't be above %s." % len(step_names))
+            logger.error("Expected state can't be above %s." % len(step_names))
             return 1
 
     start_time = time.time()
