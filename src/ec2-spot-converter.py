@@ -662,7 +662,7 @@ def terminate_instance():
     if "SpotInstanceRequestId" in instance:
         spot_request_id = instance["SpotInstanceRequestId"]
         # We require the spot request to be in 'disabled' or 'active' state.
-        need_cancel, request = spot_request_need_cancel(spot_request_id, ["disabled", "active"], wait_for_state=True)
+        need_cancel, request = spot_request_need_cancel(spot_request_id, ["open", "disabled", "active"], wait_for_state=True)
         if need_cancel: 
             logger.info(f"Cancelling Spot request {spot_request_id}...")
             response = ec2_client.cancel_spot_instance_requests(SpotInstanceRequestIds=[spot_request_id])
