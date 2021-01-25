@@ -2,7 +2,7 @@
 
 This tool converts existing AWS EC2 instances back and forth between On-Demand and 'persistent' Spot billing models while preserving
 instance attributes (Launch configuration, Tags..), network attributes (existing Private IP addresses, Elastic IP), storage (Volumes),
-Elastic Inference accelerators, Elastic GPUs. It also support update of ELB Target Groups instance registrations.
+Elastic Inference accelerators, Elastic GPUs. Optionnaly, it can also preserve ELB Target Group instance registrations.
 
 Others features:
 * Can also perform **Spot-to-Spot** and **OnDemand-to-OnDemand** conversions:
