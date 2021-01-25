@@ -19,11 +19,10 @@ import time
 import tempfile
 from collections import defaultdict
 from datetime import datetime, timezone
-import pdb
 
 # Configure logging
 import logging
-from logging import handlers
+
 LOG_LEVEL = logging.INFO
 logger = None
 def configure_logging(argv):
@@ -61,6 +60,7 @@ try:
     dynamodb_client          = boto3.client("dynamodb",          config=config)
     elastic_inference_client = boto3.client("elastic-inference", config=config)
     kms_client               = boto3.client("kms",               config=config)
+    elbv2_client             = boto3.client("elbv2",             config=config)
 except NoRegionError as e:
     print("Please specify an AWS region (either with AWS_DEFAULT_REGION environment variable or using cli profiles - see "
             "https://docs.aws.amazon.com/cli/latest/reference/configure/)!")
@@ -156,7 +156,6 @@ def read_state_table():
         Key=query
         )
     logger.debug(response)
-    states = defaultdict(str)
     if "Item" not in response:
         return (True, f"Record '{jobid}' doesn't exist yet.", {
             "JobId": jobid
@@ -239,7 +238,6 @@ def discover_instance_state():
     billing_model              = args["target_billing_model"]
     instance_is_spot           = "SpotInstanceRequestId" in instance
     spot_request               = {}
-    spot_request_state         = None
     problematic_spot_condition = False
     if instance_is_spot:
         spot_request_id = instance["SpotInstanceRequestId"]
@@ -305,24 +303,35 @@ def discover_instance_state():
     response       = ec2_client.describe_volumes(VolumeIds=volume_ids)
     volume_details = response["Volumes"]
 
+    # Get target group registrations
+    elb_targets    = get_elb_targets(instance_id)
+
     # 'stopped' state management.
     instance_state = instance["State"]["Name"]
-    if instance_state == "stopped":
-        return (True, "Instance already in 'stopped' state. Pre-requisite passed.", {
-            "VolumeDetails": volume_details,
-            "InitialInstanceState": instance,
-            "SpotRequest": spot_request,
-            "CPUOptions": cpu_options,
-            "FailedStop": False,
-            "StartTime": start_time,
-            "StartDate": str(datetime.now(tz=timezone.utc))
-            })
 
-    if "stop_instance" not in args:
+    if instance_state != "stopped" and "stop_instance" not in args:
         return (False, f"Instance '{instance_id}' must be in 'stopped' state (current={instance_state}) ! Use --stop-instance if you want to stop it.", {})
 
+    return (True, f"Instance is in state {instance_state}...", {
+        "VolumeDetails": volume_details,
+        "ELBTargets": elb_targets,
+        "InitialInstanceState": instance,
+        "SpotRequest": spot_request,
+        "CPUOptions": cpu_options,
+        "StartTime": start_time,
+        "StartDate": str(datetime.now(tz=timezone.utc))
+        })
+
+def stop_instance():
+    instance       = states["InitialInstanceState"]
+    instance_id    = instance["InstanceId"]
+    instance_state = instance["State"]["Name"]
+
     failed_stop = False
-    msg         = f"{instance_state} is in state {instance_state}..."
+    if instance_state == "stopped":
+        return (True, "Instance already in 'stopped' state. Pre-requisite passed.", {"FailedStop": failed_stop})
+
+    msg         = f"Instance is in state {instance_state}..."
     if instance_state in ["pending", "running"]:
         try:
             msg = f"Stopping '{instance_id}'..."
@@ -331,24 +340,15 @@ def discover_instance_state():
             error_code = e.response['Error']['Code']
             if args["do_not_require_stopped_instance"] and error_code == 'IncorrectSpotRequestState':
                 msg = str(f"Received an Exception {error_code} while attempting to stop instance. Continue anyway with the running instance as "
-                            "--do-not-require-stopped-state option is set.")
+                    "--do-not-require-stopped-state option is set.")
                 failed_stop = True
             else:
                 raise e
-    return (True, msg, {
-        "VolumeDetails": volume_details,
-        "InitialInstanceState": instance,
-        "SpotRequest": spot_request,
-        "CPUOptions": cpu_options,
-        "FailedStop": failed_stop,
-        "StartTime": start_time,
-        "StartDate": str(datetime.now(tz=timezone.utc))
-        })
+    return (True, msg, {"FailedStop": failed_stop})
 
 def wait_stop_instance():
     failed_stop    = states["FailedStop"]
     instance       = states["InitialInstanceState"]
-    instance_id    = instance["InstanceId"]
     instance_state = instance["State"]["Name"]
     max_attempts   = 100
     while not failed_stop and instance_state != "stopped":
@@ -386,7 +386,6 @@ def tag_all_resources():
 
 def detach_volumes():
     instance    = states["ConversionStartInstanceState"]
-    vol_details = states["VolumeDetails"]
     root_device = instance["RootDeviceName"]
     instance_id = instance["InstanceId"]
 
@@ -406,7 +405,7 @@ def detach_volumes():
         multi_attached   = vol_detail["MultiAttachEnabled"]
         if volume_state == "in-use" and stilled_attached is not None:
             logger.info(f"Detaching volume {vol}... (volume state='{volume_state}', multi-attached='{multi_attached}')")
-            response = ec2_client.detach_volume(Device=blk["DeviceName"], InstanceId=instance_id, VolumeId=vol)
+            ec2_client.detach_volume(Device=blk["DeviceName"], InstanceId=instance_id, VolumeId=vol)
         else:
             # Can happen if the tool has been interrupted and is replayed to redo the step.
             if stilled_attached is None:
@@ -497,7 +496,6 @@ def create_ami():
 
 def prepare_network_interfaces():
     instance    = states["WithoutExtraVolumesInstanceState"]
-    instance_id = instance["InstanceId"]
 
     for eni in instance["NetworkInterfaces"]:
         eni_id   = eni["NetworkInterfaceId"]
@@ -551,6 +549,107 @@ def instance_state_checkpoint():
         "ElasticGPUs": elastic_gpus
         })
 
+def get_elb_targets(instance_id):
+    response = elbv2_client.describe_target_groups()
+    targets  = []
+    logger.debug(response)
+    for target_group in response["TargetGroups"]:
+        if target_group["TargetType"] != "instance": continue
+        target_group_arn = target_group["TargetGroupArn"]
+        # Skipped filter by instance id, because if it exsist multiple times (with multiple ports) only one of them will
+        # be returned
+        health_response = elbv2_client.describe_target_health(TargetGroupArn=target_group_arn)
+        logger.debug(health_response)
+        for target_response in health_response["TargetHealthDescriptions"]:
+            if target_response["Target"]["Id"] != instance_id or target_response["TargetHealth"]["State"] == "unused": continue
+            target                   = dict(target_response["Target"])
+            target["TargetGroupArn"] = target_group_arn
+            del target["Id"]
+            targets.append(target)
+    return targets
+
+def deregister_from_elb_target_groups():
+    if "ELBTargets" not in states:
+        return (True, f"No ELB targets to deregister", {})
+    targets      = states["ELBTargets"]
+    instance     = states["InitialInstanceState"]
+    instance_id  = instance["InstanceId"]
+    for target in targets:
+        target_group_arn = target["TargetGroupArn"]
+        target_port      = target["Port"]
+        logger.info(f"Deregistering from ELB target group {target_group_arn}... (port={target_port})")
+        # Doesn't throw if not registered at this point
+        elbv2_client.deregister_targets(TargetGroupArn=target_group_arn, Targets=[{
+            "Id": instance_id,
+            "Port": target_port
+        }])
+    return (True, f"Deregistered ELB targets", {})
+
+def drain_elb_target_groups():
+    if "ELBTargets" not in states:
+        return (True, f"No ELB targets to drain", {})
+    targets      = states["ELBTargets"]
+    instance     = states["InitialInstanceState"]
+    instance_id  = instance["InstanceId"]
+    for target in targets:
+        target_group_arn = target["TargetGroupArn"]
+        target_port  = target["Port"]
+        max_attempts = 100
+        while True:
+            response = elbv2_client.describe_target_health(TargetGroupArn=target_group_arn, Targets=[{
+                "Id": instance_id,
+                "Port": target_port
+            }])
+            logger.debug(response)
+            found_targets = list(filter(lambda t: t["TargetHealth"]["State"] != "unused", response["TargetHealthDescriptions"]))
+            if len(found_targets) == 0: break
+            logger.info(f"Waiting for ELB target group {target_group_arn} to drain connections to instance... (port={target_port})")
+            time.sleep(15)
+            max_attempts -= 1
+            if max_attempts < 0:
+                return (False, "Timeout while waiting for ELB targets draining!", {})
+    return (True, f"Drained ELB targets", {})
+
+def register_to_elb_target_groups():
+    if "ELBTargets" not in states:
+        return (True, f"No ELB targets to register", {})
+    targets     = states["ELBTargets"]
+    instance_id = states["NewInstanceId"]
+    for target in targets:
+        target_group_arn = target["TargetGroupArn"]
+        target_port      = target["Port"]
+        logger.info(f"Registering to ELB target group {target_group_arn}... (port={target_port})")
+        # Doesn't throw if already registered at this point
+        elbv2_client.register_targets(TargetGroupArn=target_group_arn, Targets=[{
+            "Id": instance_id,
+            "Port": target_port
+        }])
+    return (True, f"Successfully registered ELB targets", {})
+
+def wait_elb_target_groups():
+    if "ELBTargets" not in states:
+        return (True, f"No ELB targets to wait for", {})
+    targets      = states["ELBTargets"]
+    instance_id  = states["NewInstanceId"]
+    for target in targets:
+        target_group_arn = target["TargetGroupArn"]
+        target_port      = target["Port"]
+        max_attempts     = 100
+        while True:
+            response = elbv2_client.describe_target_health(TargetGroupArn=target_group_arn, Targets=[{
+                "Id": instance_id,
+                "Port": target_port
+            }])
+            logger.debug(response)
+            found_targets = list(filter(lambda t: t["TargetHealth"]["State"] == "healthy", response["TargetHealthDescriptions"]))
+            if len(found_targets) == 1: break
+            logger.info(f"Waiting for instance status in ELB target group {target_group_arn} to be healthy... (port={target_port})")
+            time.sleep(15)
+            max_attempts -= 1
+            if max_attempts < 0:
+                return (False, "Timeout while waiting for ELB targets to become healthy!", {})
+    return (True, f"ELB targets are healthy", {})
+
 def terminate_instance():
     instance    = states["InstanceStateCheckpoint"]
     instance_id = instance["InstanceId"]
@@ -558,7 +657,7 @@ def terminate_instance():
     if "SpotInstanceRequestId" in instance:
         spot_request_id = instance["SpotInstanceRequestId"]
         # We require the spot request to be in 'disabled' or 'active' state.
-        need_cancel, request = spot_request_need_cancel(spot_request_id, ["disabled", "active"], wait_for_state=True)
+        need_cancel, request = spot_request_need_cancel(spot_request_id, ["open", "disabled", "active"], wait_for_state=True)
         if need_cancel: 
             logger.info(f"Cancelling Spot request {spot_request_id}...")
             response = ec2_client.cancel_spot_instance_requests(SpotInstanceRequestIds=[spot_request_id])
@@ -637,7 +736,7 @@ def create_new_instance():
     if len(eni_instance_ids) > 0:
         if len(eni_attached_ids) == len(eni_ids) and len(eni_instance_ids) == 1:
             new_instance_id = eni_instance_ids[0]
-            # Beyond the reasonnable doubt... A new instance succeeded to attach the interface(s).
+            # Beyond the reasonable doubt... A new instance succeeded to attach the interface(s).
             return (True, f"Recovered new instance '{new_instance_id}' from previous execution!", {
                 "NewInstanceId": new_instance_id,
                 })
@@ -837,7 +936,7 @@ def reattach_volumes():
         blk         = next(filter(lambda v: v["Ebs"]["VolumeId"] == vol, orig_instance["BlockDeviceMappings"]), None)
         device_name = blk["DeviceName"]
         logger.info(f"Attaching volume {vol} to {instance_id} with device name {device_name}...")
-        response = ec2_client.attach_volume(
+        ec2_client.attach_volume(
             Device=device_name,
             InstanceId=instance_id,
             VolumeId=vol)
@@ -867,7 +966,6 @@ def configure_network_interfaces():
 
 def manage_elastic_ip():
     instance          = states["InitialInstanceState"]
-    instance_id       = states["NewInstanceId"]
     response          = ec2_client.describe_addresses()
     eips              = response["Addresses"]
     reassociated_eips = []
@@ -963,6 +1061,25 @@ steps = [
         "Description": "Discover instance state (and stop instance if requested by --stop-instance)..."
     },
     {
+        "Name": "deregister_from_elb_target_groups",
+        "PrettyName": "DeregisterFromElbTargetGroups",
+        "Function": deregister_from_elb_target_groups,
+        "Description": "Deregister from ELB target groups.."
+    },
+    {
+        "Name": "drain_elb_target_groups",
+        "IfNotArgs": "skip_elb_drain",
+        "PrettyName": "DrainElbTargetGroups",
+        "Function": drain_elb_target_groups,
+        "Description": "Wait for drainage of ELB targets.."
+    },
+    {
+        "Name" : "stop_instance",
+        "PrettyName" : "StopInstance",
+        "Function": stop_instance,
+        "Description": "Stop the instance..."
+    },
+    {
         "Name" : "wait_stop_instance",
         "PrettyName" : "WaitStopInstance",
         "Function": wait_stop_instance,
@@ -1053,6 +1170,12 @@ steps = [
         "Description": "Manage Elastic IP..."
     },
     {
+        "Name": "register_to_elb_target_groups",
+        "PrettyName": "RegisterToElbTargetGroups",
+        "Function": register_to_elb_target_groups,
+        "Description": "Register to ELB target groups.."
+    },
+    {
         "Name" : "reboot_if_needed",
         "PrettyName" : "RebootIfNeeded",
         "Function": reboot_if_needed,
@@ -1070,6 +1193,13 @@ steps = [
         "PrettyName" : "DeregisterImage",
         "Function": deregister_image,
         "Description": "Deregister image..."
+    },
+    {
+        "Name" : "wait_elb_target_groups",
+        "IfArgs": "wait_for_elb_health",
+        "PrettyName" : "WaitElbTargetGroups",
+        "Function": wait_elb_target_groups,
+        "Description": "Waiting for ELB targets to be healthy..."
     }
 ]
 
@@ -1102,6 +1232,8 @@ default_args = {
         "target_billing_model": "spot",
         "reboot_if_needed": False,
         "delete_ami": False,
+        "wait_for_elb_health": False,
+        "skip_elb_drain": False,
         "force": False,
         "ignore_userdata": False,
         "ignore_hibernation_options": False,
@@ -1112,6 +1244,7 @@ default_args = {
 
 def main(argv):
     global args
+    global LOG_LEVEL
     if "--version" in argv or "-v" in argv:
         print(f"{VERSION} ({RELEASE_DATE})")
         return 0
@@ -1148,6 +1281,10 @@ def main(argv):
     parser.add_argument('--reboot-if-needed', help="Reboot the new instance if needed.", 
             action='store_true', required=False, default=argparse.SUPPRESS)
     parser.add_argument('--delete-ami', help="Delete AMI at end of conversion.", 
+            action='store_true', required=False, default=argparse.SUPPRESS)
+    parser.add_argument('--skip-elb-drain', help="Skip draining connection of ELB target before stopping the instnace.",
+            action='store_true', required=False, default=argparse.SUPPRESS)
+    parser.add_argument('--wait-for-elb-health', help="Wait for ELB target registration to be healthy at end of conversion.",
             action='store_true', required=False, default=argparse.SUPPRESS)
     parser.add_argument('--do-not-require-stopped-instance', help="Allow instance conversion while instance is in 'running' state. (NOT RECOMMENDED)", 
             action='store_true', required=False, default=argparse.SUPPRESS)
@@ -1199,7 +1336,7 @@ def main(argv):
             set_state("ConversionStep", step_names[expected_step-1])
             return 0
         else:
-            log.error("Expected state can't be above %s." % len(step_names))
+            logger.error("Expected state can't be above %s." % len(step_names))
             return 1
 
     start_time = time.time()
@@ -1209,6 +1346,10 @@ def main(argv):
         if "IfArgs" in step and not args[step["IfArgs"]]:
             logger.info(f"[STEP %d/%d] %s => SKIPPED! Need '--%s' argument." % 
                     (i + 1, len(steps), step["Description"], step["IfArgs"].replace("_","-")))
+            continue
+        if "IfNotArgs" in step and args[step["IfNotArgs"]]:
+            logger.info(f"[STEP %d/%d] %s => SKIPPED! Remove '--%s' argument." %
+                    (i + 1, len(steps), step["Description"], step["IfNotArgs"].replace("_","-")))
             continue
         display_status = ""
         if "ConversionStep" in states:
@@ -1220,8 +1361,14 @@ def main(argv):
 
         # Warn the user when command line has changed between invocation
         if i > 0 and "ConversionStepCmdLineArgs" in states:
-            prev_step_name = steps[i-1]["Name"]
-            prev_step_args = states["ConversionStepCmdLineArgs"][prev_step_name] 
+            prev_step_index = i-1
+            prev_step       = steps[prev_step_index]
+            # If previous step was skipped, compare to the one before it
+            while ("IfArgs" in prev_step and not args[prev_step["IfArgs"]]) or ("IfNotArgs" in step and args[step["IfNotArgs"]]):
+                prev_step_index = prev_step_index - 1
+                prev_step       = steps[prev_step_index]
+            prev_step_name = prev_step["Name"]
+            prev_step_args = states["ConversionStepCmdLineArgs"][prev_step_name]
             current_args   = args if display_status == "" else states["ConversionStepCmdLineArgs"][steps[i]["Name"]]
             if prev_step_args != current_args:
                 changed_args = {}
