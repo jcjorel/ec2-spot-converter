@@ -670,6 +670,7 @@ def wait_target_groups():
     if len(args["wait_for_tg_states"]):
         exit_states = args["wait_for_tg_states"]
 
+    final_states = {}
     for target in targets:
         target_group_arn = target["TargetGroupArn"]
         target_port      = target["Port"]
@@ -682,11 +683,11 @@ def wait_target_groups():
             logger.debug(response)
             tg_descriptions = response["TargetHealthDescriptions"]
             found_targets   = list(filter(lambda t: t["TargetHealth"]["State"] in exit_states, tg_descriptions))
+            current_state   = tg_descriptions[0]["TargetHealth"]["State"] if len(tg_descriptions) else "unknown"
             if len(found_targets) == 1: 
-                logger.info(f"Instance '{instance_id}' reached expected state '%s' in target group {target_group_arn}." %
-                        found_targets[0]["TargetHealth"]["State"])
+                logger.info(f"Instance '{instance_id}' reached expected state '{current_state}' in target group {target_group_arn}.")
+                final_states[f"{target_group_arn}:{target_port}"] = current_state
                 break
-            current_state = tg_descriptions[0]["TargetHealth"]["State"] if len(tg_descriptions) else "unknown"
             max_attempts -= 1
             if max_attempts < 0:
                 return (False, f"Timeout while waiting for instance to reach expected states {exit_states}!", {})
@@ -694,7 +695,7 @@ def wait_target_groups():
                 logger.info(f"Waiting for instance status in {target_group_arn} to reach states {exit_states}... "
                     f"(current state={current_state}, port={target_port})")
             time.sleep(10)
-    return (True, f"Instance '{instance_id}' is healthy in participating target groups.", {})
+    return (True, f"Instance '{instance_id}' has reached expected states in participating target groups: {final_states}.", {})
 
 def terminate_instance():
     instance    = states["InstanceStateCheckpoint"]
@@ -1240,7 +1241,7 @@ steps = [
         "IfArgs": "wait_for_tg_states",
         "PrettyName" : "WaitTargetGroups",
         "Function": wait_target_groups,
-        "Description": "Waiting for instance to be healthy in target groups..."
+        "Description": "Waiting for instance to be at expected states in target groups..."
     },
     {
         "Name" : "deregister_image",
