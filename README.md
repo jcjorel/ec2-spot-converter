@@ -154,7 +154,7 @@ The tool can preserve the target group registrations of the converted instance.
 
 The feature is enabled by setting option `--check-targetgroups` with either a list of target group ARNs to inspect or the wildcard 
 character `'*'` which means all target groups in the account and
-region. As an account can contain up to 3000 target groups and induce long processing times, the feature is disabled by default.
+region. As an AWS account can contain up to 3000 target groups and induce long processing times, the feature is disabled by default.
 
 Optionaly, the tool can wait for the newly created instance to be in healthy state in all participating target groups with the `--wait-for-tg-health` setting.
 
