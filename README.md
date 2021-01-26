@@ -155,7 +155,7 @@ instance Id, all references in target groups of this instance Id need to be upda
 
 The feature is enabled by setting option `--check-targetgroups` with either a list of target group ARNs to inspect or the wildcard 
 character `'*'` which means all target groups in the account and
-region. As an AWS account can contain up to 3000 target groups and induce long processing times, the feature is disabled by default.
+region. **As an AWS account can contain up to 3000 target groups and induce long processing times, the feature is disabled by default**.
 
 Optionally, the tool can wait for the newly created instance to be in healthy state in all participating target groups with the `--wait-for-tg-health` setting.
 
