@@ -2,7 +2,7 @@
 
 This tool converts existing AWS EC2 instances back and forth between On-Demand and 'persistent' Spot billing models while preserving
 instance attributes (Launch configuration, Tags..), network attributes (existing Private IP addresses, Elastic IP), storage (Volumes),
-Elastic Inference accelerators, Elastic GPUs. Optionnaly, it can also preserve ELB Target Group instance registrations.
+Elastic Inference accelerators, Elastic GPUs. Optionally, it can also preserve ELB Target Group instance registrations.
 
 Others features:
 * Can also perform **Spot-to-Spot** and **OnDemand-to-OnDemand** conversions:
@@ -156,7 +156,7 @@ The feature is enabled by setting option `--check-targetgroups` with either a li
 character `'*'` which means all target groups in the account and
 region. As an AWS account can contain up to 3000 target groups and induce long processing times, the feature is disabled by default.
 
-Optionaly, the tool can wait for the newly created instance to be in healthy state in all participating target groups with the `--wait-for-tg-health` setting.
+Optionally, the tool can wait for the newly created instance to be in healthy state in all participating target groups with the `--wait-for-tg-health` setting.
 
 # Command line usage
 
