@@ -640,7 +640,7 @@ def drain_elb_target_groups():
             max_attempts -= 1
             if max_attempts < 0:
                 return (False, "Timeout while waiting for target draining!", {})
-            if max_attempts % 6 == 0:
+            if max_attempts % 3 == 0:
                 logger.info(f"Waiting for instance to be drained from {target_group_arn}... (port={target_port})")
             time.sleep(10)
     return (True, f"Drained instance from target groups.", {})
@@ -662,8 +662,8 @@ def register_to_elb_target_groups():
     return (True, f"Successfully registered instance '{instance_id}' in target groups.", {})
 
 def wait_target_groups():
-    if "ELBTargets" not in states:
-        return (True, f"No TargetGroup to wait for instance status.", {})
+    if "ELBTargets" not in states or len(states["ELBTargets"]) == 0:
+        return (True, f"No target group to wait for instance health status.", {})
     targets      = states["ELBTargets"]
     instance_id  = states["NewInstanceId"]
     for target in targets:
@@ -681,7 +681,7 @@ def wait_target_groups():
             max_attempts -= 1
             if max_attempts < 0:
                 return (False, "Timeout while waiting for instance to become healthy!", {})
-            if max_attempts % 6 == 0:
+            if max_attempts % 3 == 0:
                 logger.info(f"Waiting for instance status in {target_group_arn} to be healthy... (port={target_port})")
             time.sleep(10)
     return (True, f"Instance '{instance_id}' is healthy in participating target groups.", {})
