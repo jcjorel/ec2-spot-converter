@@ -1309,9 +1309,9 @@ def main(argv):
             action='store_true', required=False, default=argparse.SUPPRESS)
     parser.add_argument('--delete-ami', help="Delete AMI at end of conversion.", 
             action='store_true', required=False, default=argparse.SUPPRESS)
-    parser.add_argument('--check-targetgroups', help="List of TargetGroup ARNs to look for instance membership. Wildcard '*' means all "
-            "TargetGroups in the current account and region (WARNING: An account can contain up to 3000 TargetGroups) "
-            "Default: None (means no TargetGroup membership assesment by default)",
+    parser.add_argument('--check-targetgroups', help="List of target group ARNs to look for converted instance registrations. Wildcard '*' means all "
+            "ELB target groups in the current account and region (WARNING: An account can contain up to 3000 target groups and induce long "
+            "processing time). Default: None (means no target group registration preservation by default)",
             nargs='+', required=False, default=argparse.SUPPRESS)
     parser.add_argument('--wait-for-tg-health', help="Wait for TargetGroup registration to be healthy at end of conversion.",
             action='store_true', required=False, default=argparse.SUPPRESS)
