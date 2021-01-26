@@ -306,6 +306,8 @@ def discover_instance_state():
 
     # Get target group registrations
     elb_targets    = get_elb_targets(instance_id)
+    if elb_targets is None:
+        return (False, f"Failed to retrieve ELB target groups!", {})
 
     # 'stopped' state management.
     instance_state = instance["State"]["Name"]
@@ -552,7 +554,7 @@ def instance_state_checkpoint():
 
 def get_elb_targets(instance_id):
     if "check_targetgroups" not in args:
-        return None
+        return []
     paginator         = elbv2_client.get_paginator('describe_target_groups')
     query_parameters  = {
             "PaginationConfig": {
@@ -564,11 +566,15 @@ def get_elb_targets(instance_id):
         query_parameters["TargetGroupArns"] = args["check_targetgroups"]
     response_iterator = paginator.paginate(**query_parameters)
     targetgroups      = []
-    for response in response_iterator:
-        logger.debug(response)
-        for t in response["TargetGroups"]:
-            if t["TargetType"] == "instance":
-                targetgroups.append(t)
+    try:
+        for response in response_iterator:
+            logger.debug(response)
+            for t in response["TargetGroups"]:
+                if t["TargetType"] == "instance":
+                    targetgroups.append(t)
+    except ClientError as e:
+        logger.error(f"Failed to list target groups: {e}.")
+        return None
 
     nb_of_targetgroups = len(targetgroups)
     logger.info(f"{nb_of_targetgroups} target groups of type 'instance' will be inspected for possible instance membership. "
@@ -631,11 +637,12 @@ def drain_elb_target_groups():
             logger.debug(response)
             found_targets = list(filter(lambda t: t["TargetHealth"]["State"] != "unused", response["TargetHealthDescriptions"]))
             if len(found_targets) == 0: break
-            logger.info(f"Waiting for instance to be drained from {target_group_arn}... (port={target_port})")
-            time.sleep(60)
             max_attempts -= 1
             if max_attempts < 0:
                 return (False, "Timeout while waiting for target draining!", {})
+            if max_attempts % 6 == 0:
+                logger.info(f"Waiting for instance to be drained from {target_group_arn}... (port={target_port})")
+            time.sleep(10)
     return (True, f"Drained instance from target groups.", {})
 
 def register_to_elb_target_groups():
@@ -671,11 +678,12 @@ def wait_target_groups():
             logger.debug(response)
             found_targets = list(filter(lambda t: t["TargetHealth"]["State"] in ["unused", "healthy"], response["TargetHealthDescriptions"]))
             if len(found_targets) == 1: break
-            logger.info(f"Waiting for instance status in {target_group_arn} to be healthy... (port={target_port})")
-            time.sleep(60)
             max_attempts -= 1
             if max_attempts < 0:
                 return (False, "Timeout while waiting for instance to become healthy!", {})
+            if max_attempts % 6 == 0:
+                logger.info(f"Waiting for instance status in {target_group_arn} to be healthy... (port={target_port})")
+            time.sleep(10)
     return (True, f"Instance '{instance_id}' is healthy in participating target groups.", {})
 
 def terminate_instance():
