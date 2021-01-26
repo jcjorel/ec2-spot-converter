@@ -556,7 +556,7 @@ def get_elb_targets(instance_id):
     paginator         = elbv2_client.get_paginator('describe_target_groups')
     query_parameters  = {
             "PaginationConfig": {
-                'MaxItems': 1000,
+                'MaxItems': 3000, # Maximum number of target groups per account
                 'PageSize': 200
             }
         }
