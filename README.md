@@ -148,6 +148,14 @@ Ex:
 
 If you want to convert **Spot-to-Spot** or **OnDemand-to-OnDemand**, specify `--force` option as well.
 
+### Preserve ELB target group registrations
+
+The tool can preserve the target group registrations of the converted instance. 
+
+The feature is enabled by setting option `--check-targetgroups` with either a list of target group ARNs to inspect or '*' that means all target groups in the account and
+region. As an account can contain up to 3000 target groups and induce long processing times, the feature is disabled by default.
+
+Optionaly, the tool can wait for the newly created instance to be in healthy state in all participating target groups with the `--wait-for-tg-health` setting.
 
 # Command line usage
 
@@ -205,10 +213,13 @@ optional arguments:
                         'running' state.
   --reboot-if-needed    Reboot the new instance if needed.
   --delete-ami          Delete AMI at end of conversion.
-  --skip-elb-drain      Skip draining connection of ELB target before stopping
-                        the instnace.
-  --wait-for-elb-health
-                        Wait for ELB target registration to be healthy at end
+  --check-targetgroups CHECK_TARGETGROUPS [CHECK_TARGETGROUPS ...]
+                        List of TargetGroup ARNs to look for instance
+                        membership. Wildcard '*' means all TargetGroups in the
+                        current account and region (WARNING: An account can
+                        contain up to 3000 TargetGroups) Default: None (means
+                        no TargetGroup membership assesment by default)
+  --wait-for-tg-health  Wait for TargetGroup registration to be healthy at end
                         of conversion.
   --do-not-require-stopped-instance
                         Allow instance conversion while instance is in
