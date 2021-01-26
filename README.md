@@ -263,7 +263,7 @@ branch. Pull requests are warmly welcome.
 
 ### Contributor credits (Thank you!):
 
-* @regevbr: ELB target group registration preservation.
+* @regevbr: Contributed ELB target group registration preservation.
 
 ## Licensing
 
