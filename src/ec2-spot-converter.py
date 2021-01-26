@@ -604,13 +604,14 @@ def deregister_from_target_groups():
     for target in targets:
         target_group_arn = target["TargetGroupArn"]
         target_port      = target["Port"]
-        logger.info(f"Deregistering from TargetGroup {target_group_arn}... (port={target_port})")
+        logger.info(f"Deregistering from {target_group_arn}... (port={target_port})")
         # Doesn't throw if not registered at this point
         elbv2_client.deregister_targets(TargetGroupArn=target_group_arn, Targets=[{
             "Id": instance_id,
             "Port": target_port
         }])
-    return (True, f"Deregistered instance from target groups.", {})
+    targetgroup_arns = [t["TargetGroupArn"] for t in targets]
+    return (True, f"Deregistered instance from target groups {targetgroup_arns}.", {})
 
 def drain_elb_target_groups():
     if "ELBTargets" not in states:
@@ -630,13 +631,12 @@ def drain_elb_target_groups():
             logger.debug(response)
             found_targets = list(filter(lambda t: t["TargetHealth"]["State"] != "unused", response["TargetHealthDescriptions"]))
             if len(found_targets) == 0: break
-            logger.info(f"Waiting for instance to be drained from TargetGroup {target_group_arn}... (port={target_port})")
-            time.sleep(15)
+            logger.info(f"Waiting for instance to be drained from {target_group_arn}... (port={target_port})")
+            time.sleep(60)
             max_attempts -= 1
             if max_attempts < 0:
                 return (False, "Timeout while waiting for target draining!", {})
-    targetgroup_arns = [t["TargetGroupArn"] for t in targets]
-    return (True, f"Drained instance from {targetgroup_arns}.", {})
+    return (True, f"Drained instance from target groups.", {})
 
 def register_to_elb_target_groups():
     if "ELBTargets" not in states:
@@ -672,7 +672,7 @@ def wait_target_groups():
             found_targets = list(filter(lambda t: t["TargetHealth"]["State"] in ["unused", "healthy"], response["TargetHealthDescriptions"]))
             if len(found_targets) == 1: break
             logger.info(f"Waiting for instance status in {target_group_arn} to be healthy... (port={target_port})")
-            time.sleep(15)
+            time.sleep(60)
             max_attempts -= 1
             if max_attempts < 0:
                 return (False, "Timeout while waiting for instance to become healthy!", {})
@@ -1100,7 +1100,7 @@ steps = [
         "IfArgs": "check_targetgroups",
         "PrettyName": "DrainElbTargetGroups",
         "Function": drain_elb_target_groups,
-        "Description": "Wait for drainage from ELB target groups..."
+        "Description": "Wait for drainage of ELB target groups..."
     },
     {
         "Name" : "stop_instance",
