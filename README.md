@@ -157,26 +157,30 @@ The feature is enabled by setting option `--check-targetgroups` with either a li
 character `'*'` which means all target groups in the account and
 region. **As an AWS account can contain up to 3000 target groups and induce long processing times, the feature is disabled by default**.
 
-Optionally, the tool can wait for the newly created instance to be in healthy state in all participating target groups with the `--wait-for-tg-health` setting.
+Optionally, the tool can wait, at end of conversion, for the newly created instance to reach one of specified health states in 
+all participating target groups.
+Specify `--wait-for-tg-states` setting without argument to wait for the `["unused", "healthy"]` states or provide a list of expected target group states 
+(ex: specify both `unhealthy` and `healthy` to exit from the tool after the `initial` phase even in case failure to pass health checks).
 
 # Command line usage
 
 ```
-usage: ec2-spot-converter-v0.8.0 [-h] -i INSTANCE_ID [-m {spot,on-demand}]
-                                 [-t TARGET_INSTANCE_TYPE] [--ignore-userdata]
-                                 [--ignore-hibernation-options]
-                                 [--cpu-options CPU_OPTIONS]
-                                 [--max-spot-price MAX_SPOT_PRICE]
-                                 [--volume-kms-key-id VOLUME_KMS_KEY_ID] [-s]
-                                 [--reboot-if-needed] [--delete-ami]
-                                 [--skip-elb-drain] [--wait-for-elb-health]
-                                 [--do-not-require-stopped-instance] [-r]
-                                 [--dynamodb-tablename DYNAMODB_TABLENAME]
-                                 [--generate-dynamodb-table] [-f]
-                                 [--do-not-pause-on-major-warnings]
-                                 [--reset-step RESET_STEP] [-d] [-v]
+usage: ec2-spot-converter [-h] -i INSTANCE_ID [-m {spot,on-demand}]
+                          [-t TARGET_INSTANCE_TYPE] [--ignore-userdata]
+                          [--ignore-hibernation-options]
+                          [--cpu-options CPU_OPTIONS]
+                          [--max-spot-price MAX_SPOT_PRICE]
+                          [--volume-kms-key-id VOLUME_KMS_KEY_ID] [-s]
+                          [--reboot-if-needed] [--delete-ami]
+                          [--check-targetgroups CHECK_TARGETGROUPS [CHECK_TARGETGROUPS ...]]
+                          [--wait-for-tg-states [{unused,unhealthy,healthy,initial,draining} [{unused,unhealthy,healthy,initial,draining} ...]]]
+                          [--do-not-require-stopped-instance] [-r]
+                          [--dynamodb-tablename DYNAMODB_TABLENAME]
+                          [--generate-dynamodb-table] [-f]
+                          [--do-not-pause-on-major-warnings]
+                          [--reset-step RESET_STEP] [-d] [-v]
 
-EC2 Spot converter v0.8.0 (Mon Jan 4 20:21:52 UTC 2021)
+EC2 Spot converter
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -216,13 +220,17 @@ optional arguments:
   --reboot-if-needed    Reboot the new instance if needed.
   --delete-ami          Delete AMI at end of conversion.
   --check-targetgroups CHECK_TARGETGROUPS [CHECK_TARGETGROUPS ...]
-                        List of TargetGroup ARNs to look for instance
-                        membership. Wildcard '*' means all TargetGroups in the
-                        current account and region (WARNING: An account can
-                        contain up to 3000 TargetGroups) Default: None (means
-                        no TargetGroup membership assesment by default)
-  --wait-for-tg-health  Wait for TargetGroup registration to be healthy at end
-                        of conversion.
+                        List of target group ARNs to look for converted
+                        instance registrations. Wildcard '*' means all ELB
+                        target groups in the current account and region
+                        (WARNING: An account can contain up to 3000 target
+                        groups and induce long processing time). Default: None
+                        (means no target group registration preservation by
+                        default)
+  --wait-for-tg-states [{unused,unhealthy,healthy,initial,draining} [{unused,unhealthy,healthy,initial,draining} ...]]
+                        Wait for target group registrations to reach specified
+                        state(s) at end of conversion. Default: ['unused',
+                        'healthy']
   --do-not-require-stopped-instance
                         Allow instance conversion while instance is in
                         'running' state. (NOT RECOMMENDED)
@@ -244,7 +252,6 @@ optional arguments:
                         specified processing step.
   -d, --debug           Turn on debug traces.
   -v, --version         Display tool version.
-
 ```
 
 > At the end of a conversion, the tool can replay as many times as wished former conversion results specifying the original instance id: It will display again all execution steps and it can be useful to review again the conversion result (VIm Diff window) of a previous run. The `--delete-ami` option can also be added in a subsequent call to suppress the AMI and associated snapshots built by a previous tool execution.

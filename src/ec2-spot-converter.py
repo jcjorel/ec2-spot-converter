@@ -664,8 +664,12 @@ def register_to_elb_target_groups():
 def wait_target_groups():
     if "ELBTargets" not in states or len(states["ELBTargets"]) == 0:
         return (True, f"No target group to wait for instance health status.", {})
-    targets      = states["ELBTargets"]
-    instance_id  = states["NewInstanceId"]
+    targets     = states["ELBTargets"]
+    instance_id = states["NewInstanceId"]
+    exit_states = ["unused", "healthy"] # Default
+    if len(args["wait_for_tg_states"]):
+        exit_states = args["wait_for_tg_states"]
+
     for target in targets:
         target_group_arn = target["TargetGroupArn"]
         target_port      = target["Port"]
@@ -676,13 +680,19 @@ def wait_target_groups():
                 "Port": target_port
             }])
             logger.debug(response)
-            found_targets = list(filter(lambda t: t["TargetHealth"]["State"] in ["unused", "healthy"], response["TargetHealthDescriptions"]))
-            if len(found_targets) == 1: break
+            tg_descriptions = response["TargetHealthDescriptions"]
+            found_targets   = list(filter(lambda t: t["TargetHealth"]["State"] in exit_states, tg_descriptions))
+            if len(found_targets) == 1: 
+                logger.info(f"Instance '{instance_id}' reached expected state '%s' in target group {target_group_arn}." %
+                        found_targets[0]["TargetHealth"]["State"])
+                break
+            current_state = tg_descriptions[0]["TargetHealth"]["State"] if len(tg_descriptions) else "unknown"
             max_attempts -= 1
             if max_attempts < 0:
-                return (False, "Timeout while waiting for instance to become healthy!", {})
+                return (False, f"Timeout while waiting for instance to reach expected states {exit_states}!", {})
             if max_attempts % 3 == 0:
-                logger.info(f"Waiting for instance status in {target_group_arn} to be healthy... (port={target_port})")
+                logger.info(f"Waiting for instance status in {target_group_arn} to reach states {exit_states}... "
+                    f"(current state={current_state}, port={target_port})")
             time.sleep(10)
     return (True, f"Instance '{instance_id}' is healthy in participating target groups.", {})
 
@@ -692,7 +702,7 @@ def terminate_instance():
 
     if "SpotInstanceRequestId" in instance:
         spot_request_id = instance["SpotInstanceRequestId"]
-        # We require the spot request to be in 'disabled' or 'active' state.
+        # We require the spot request to be in 'open', 'disabled' or 'active' state.
         need_cancel, request = spot_request_need_cancel(spot_request_id, ["open", "disabled", "active"], wait_for_state=True)
         if need_cancel: 
             logger.info(f"Cancelling Spot request {spot_request_id}...")
@@ -1227,7 +1237,7 @@ steps = [
     },
     {
         "Name" : "wait_target_groups",
-        "IfArgs": "wait_for_tg_health",
+        "IfArgs": "wait_for_tg_states",
         "PrettyName" : "WaitTargetGroups",
         "Function": wait_target_groups,
         "Description": "Waiting for instance to be healthy in target groups..."
@@ -1321,8 +1331,9 @@ def main(argv):
             "ELB target groups in the current account and region (WARNING: An account can contain up to 3000 target groups and induce long "
             "processing time). Default: None (means no target group registration preservation by default)",
             nargs='+', required=False, default=argparse.SUPPRESS)
-    parser.add_argument('--wait-for-tg-health', help="Wait for TargetGroup registration to be healthy at end of conversion.",
-            action='store_true', required=False, default=argparse.SUPPRESS)
+    parser.add_argument('--wait-for-tg-states', help="Wait for target group registrations to reach specified state(s) at end of "
+            "conversion. Default: ['unused', 'healthy']",
+            nargs='*', required=False, choices=["unused", "unhealthy", "healthy", "initial", "draining"])
     parser.add_argument('--do-not-require-stopped-instance', help="Allow instance conversion while instance is in 'running' state. (NOT RECOMMENDED)", 
             action='store_true', required=False, default=argparse.SUPPRESS)
     parser.add_argument('-r', '--review-conversion-result', help="Display side-by-side conversion result. Note: REQUIRES 'VIM' EDITOR!", 
