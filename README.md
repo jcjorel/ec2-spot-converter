@@ -2,7 +2,7 @@
 
 This tool converts existing AWS EC2 instances back and forth between On-Demand and 'persistent' Spot billing models while preserving
 instance attributes (Launch configuration, Tags..), network attributes (existing Private IP addresses, Elastic IP), storage (Volumes),
-Elastic Inference accelerators and Elastic GPUs.
+Elastic Inference accelerators, Elastic GPUs. Optionally, it can also preserve ELB Target Group instance registrations.
 
 Others features:
 * Can also perform **Spot-to-Spot** and **OnDemand-to-OnDemand** conversions:
@@ -148,24 +148,39 @@ Ex:
 
 If you want to convert **Spot-to-Spot** or **OnDemand-to-OnDemand**, specify `--force` option as well.
 
+### Preserve ELB target group registrations
+
+The tool can preserve the target group registrations of the converted instance. As the conversion is based on the termination of the specified
+instance Id, all references in target groups of this instance Id need to be updated with the new instance Id created during the conversion.
+
+The feature is enabled by setting option `--check-targetgroups` with either a list of target group ARNs to inspect or the wildcard 
+character `'*'` which means all target groups in the account and
+region. **As an AWS account can contain up to 3000 target groups and induce long processing times, the feature is disabled by default**.
+
+Optionally, the tool can wait, at end of conversion, for the newly created instance to reach one of specified health states in 
+all participating target groups.
+Specify `--wait-for-tg-states` setting without argument to wait for the `["unused", "healthy"]` states or provide a list of expected target group states 
+(ex: specify both `unhealthy` and `healthy` to exit from the tool after the `initial` phase even in case failure to pass health checks).
 
 # Command line usage
 
 ```
-usage: ec2-spot-converter-v0.8.0 [-h] -i INSTANCE_ID [-m {spot,on-demand}]
-                                 [-t TARGET_INSTANCE_TYPE] [--ignore-userdata]
-                                 [--ignore-hibernation-options]
-                                 [--cpu-options CPU_OPTIONS]
-                                 [--max-spot-price MAX_SPOT_PRICE]
-                                 [--volume-kms-key-id VOLUME_KMS_KEY_ID] [-s]
-                                 [--reboot-if-needed] [--delete-ami]
-                                 [--do-not-require-stopped-instance] [-r]
-                                 [--dynamodb-tablename DYNAMODB_TABLENAME]
-                                 [--generate-dynamodb-table] [-f]
-                                 [--do-not-pause-on-major-warnings]
-                                 [--reset-step RESET_STEP] [-d] [-v]
+usage: ec2-spot-converter [-h] -i INSTANCE_ID [-m {spot,on-demand}]
+                          [-t TARGET_INSTANCE_TYPE] [--ignore-userdata]
+                          [--ignore-hibernation-options]
+                          [--cpu-options CPU_OPTIONS]
+                          [--max-spot-price MAX_SPOT_PRICE]
+                          [--volume-kms-key-id VOLUME_KMS_KEY_ID] [-s]
+                          [--reboot-if-needed] [--delete-ami]
+                          [--check-targetgroups CHECK_TARGETGROUPS [CHECK_TARGETGROUPS ...]]
+                          [--wait-for-tg-states [{unused,unhealthy,healthy,initial,draining} [{unused,unhealthy,healthy,initial,draining} ...]]]
+                          [--do-not-require-stopped-instance] [-r]
+                          [--dynamodb-tablename DYNAMODB_TABLENAME]
+                          [--generate-dynamodb-table] [-f]
+                          [--do-not-pause-on-major-warnings]
+                          [--reset-step RESET_STEP] [-d] [-v]
 
-EC2 Spot converter v0.8.0 (Mon Jan 4 20:21:52 UTC 2021)
+EC2 Spot converter
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -192,7 +207,7 @@ optional arguments:
                         specification.
   --max-spot-price MAX_SPOT_PRICE
                         Maximum hourly price for Spot instance target.
-			Default: On-Demand price.
+                        Default: On-Demand price.
   --volume-kms-key-id VOLUME_KMS_KEY_ID
                         Identifier (key ID, key alias, ID ARN, or alias ARN)
                         for a Customer or AWS managed KMS Key used to encrypt
@@ -204,6 +219,18 @@ optional arguments:
                         'running' state.
   --reboot-if-needed    Reboot the new instance if needed.
   --delete-ami          Delete AMI at end of conversion.
+  --check-targetgroups CHECK_TARGETGROUPS [CHECK_TARGETGROUPS ...]
+                        List of target group ARNs to look for converted
+                        instance registrations. Wildcard '*' means all ELB
+                        target groups in the current account and region
+                        (WARNING: An account can contain up to 3000 target
+                        groups and induce long processing time). Default: None
+                        (means no target group registration preservation by
+                        default)
+  --wait-for-tg-states [{unused,unhealthy,healthy,initial,draining} [{unused,unhealthy,healthy,initial,draining} ...]]
+                        Wait for target group registrations to reach specified
+                        state(s) at end of conversion. Default: ['unused',
+                        'healthy']
   --do-not-require-stopped-instance
                         Allow instance conversion while instance is in
                         'running' state. (NOT RECOMMENDED)
@@ -225,7 +252,6 @@ optional arguments:
                         specified processing step.
   -d, --debug           Turn on debug traces.
   -v, --version         Display tool version.
-
 ```
 
 > At the end of a conversion, the tool can replay as many times as wished former conversion results specifying the original instance id: It will display again all execution steps and it can be useful to review again the conversion result (VIm Diff window) of a previous run. The `--delete-ami` option can also be added in a subsequent call to suppress the AMI and associated snapshots built by a previous tool execution.
@@ -242,6 +268,10 @@ allowing to reconstruct the original instance by hand. **In such event, please a
 
 If you'd like to contribute, please fork the repository and use a feature
 branch. Pull requests are warmly welcome.
+
+### Contributor credits (Thank you!):
+
+* @regevbr: Contributed ELB target group registration preservation.
 
 ## Licensing
 
