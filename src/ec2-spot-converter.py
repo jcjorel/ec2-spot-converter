@@ -592,7 +592,7 @@ def get_elb_targets(instance_id):
             del target["Id"]
             targets.append(target)
     matching_tg_registrations = len(targets)
-    logger.info(f"Found {matching_tg_registrations} TargetGroup registrations for instance {instance_id}...")
+    logger.info(f"Found {matching_tg_registrations} target group registrations to preserve for instance {instance_id}...")
     return targets
 
 def deregister_from_target_groups():
