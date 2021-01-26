@@ -1,6 +1,6 @@
 # ec2-spot-converter
 
-This tool converts existing AWS EC2 instances back and forth between On-Demand and 'persistent' Spot billing models while preserving
+This tool converts existing AWS EC2 instances back and forth between **On-Demand** and **'persistent' Spot** billing models while preserving
 instance attributes (Launch configuration, Tags..), network attributes (existing Private IP addresses, Elastic IP), storage (Volumes),
 Elastic Inference accelerators, Elastic GPUs. 
 
