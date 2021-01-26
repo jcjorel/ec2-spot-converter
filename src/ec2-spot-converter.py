@@ -553,26 +553,33 @@ def instance_state_checkpoint():
 def get_elb_targets(instance_id):
     if "check_targetgroups" not in args:
         return None
-    targetgroup_args  = args["check_targetgroups"] if args["check_targetgroups"][0] != "*" else None
     paginator         = elbv2_client.get_paginator('describe_target_groups')
-    response_iterator = paginator.paginate(
-        TargetGroupArns  = targetgroup_args,
-        PaginationConfig = {
-            'MaxItems': 1000,
-            'PageSize': 200
-        })
+    query_parameters  = {
+            "PaginationConfig": {
+                'MaxItems': 1000,
+                'PageSize': 200
+            }
+        }
+    if "*" not in args["check_targetgroups"]:
+        query_parameters["TargetGroupArns"] = args["check_targetgroups"]
+    response_iterator = paginator.paginate(**query_parameters)
     targetgroups = []
     for response in response_iterator:
         logger.debug(response)
-        targetgroups.extend(response["TargetGroups"])
+        for t in response["TargetGroups"]:
+            if t["TargetType"] == "instance":
+                targetgroups.append(t)
 
     nb_of_targetgroups = len(targetgroups)
-    logger.info(f"{nb_of_targetgroups} targetgroups will be inspected for possible instance membership. "
-            "Note: A large number of targetgroups could take a lots of time to processs.")
+    logger.info(f"{nb_of_targetgroups} target groups of type 'instance' will be inspected for possible instance membership. "
+            "Note: A large number of target groups could take a lot of time to processs.")
 
     targets      = []
+    count        = 0
     for target_group in targetgroups:
-        if target_group["TargetType"] != "instance": continue
+        count += 1
+        if count % 20 == 0:
+            logger.info(f"Processed {count} target groups...")
         target_group_arn = target_group["TargetGroupArn"]
         # Skipped filter by instance id, because if it exists multiple times (with multiple ports) only one of them will
         # be returned
@@ -584,6 +591,8 @@ def get_elb_targets(instance_id):
             target["TargetGroupArn"] = target_group_arn
             del target["Id"]
             targets.append(target)
+    matching_tg_registrations = len(targets)
+    logger.info(f"Found {matching_tg_registrations} TargetGroup registrations for instance {instance_id}...")
     return targets
 
 def deregister_from_target_groups():
@@ -601,7 +610,7 @@ def deregister_from_target_groups():
             "Id": instance_id,
             "Port": target_port
         }])
-    return (True, f"Deregistered instance from TargetGroups.", {})
+    return (True, f"Deregistered instance from target groups.", {})
 
 def drain_elb_target_groups():
     if "ELBTargets" not in states:
@@ -627,7 +636,7 @@ def drain_elb_target_groups():
             if max_attempts < 0:
                 return (False, "Timeout while waiting for target draining!", {})
     targetgroup_arns = [t["TargetGroupArn"] for t in targets]
-    return (True, f"Drained instance from TargetGroups {targetgroup_arns}.", {})
+    return (True, f"Drained instance from {targetgroup_arns}.", {})
 
 def register_to_elb_target_groups():
     if "ELBTargets" not in states:
@@ -637,13 +646,13 @@ def register_to_elb_target_groups():
     for target in targets:
         target_group_arn = target["TargetGroupArn"]
         target_port      = target["Port"]
-        logger.info(f"Registering to TargetGroup {target_group_arn}... (port={target_port})")
+        logger.info(f"Registering to {target_group_arn}... (port={target_port})")
         # Doesn't throw if already registered at this point
         elbv2_client.register_targets(TargetGroupArn=target_group_arn, Targets=[{
             "Id": instance_id,
             "Port": target_port
         }])
-    return (True, f"Successfully registered instance '{instance_id}' in TargetGroups.", {})
+    return (True, f"Successfully registered instance '{instance_id}' in target groups.", {})
 
 def wait_target_groups():
     if "ELBTargets" not in states:
@@ -662,12 +671,12 @@ def wait_target_groups():
             logger.debug(response)
             found_targets = list(filter(lambda t: t["TargetHealth"]["State"] in ["unused", "healthy"], response["TargetHealthDescriptions"]))
             if len(found_targets) == 1: break
-            logger.info(f"Waiting for instance status in TargetGroup {target_group_arn} to be healthy... (port={target_port})")
+            logger.info(f"Waiting for instance status in {target_group_arn} to be healthy... (port={target_port})")
             time.sleep(15)
             max_attempts -= 1
             if max_attempts < 0:
                 return (False, "Timeout while waiting for instance to become healthy!", {})
-    return (True, f"Instance '{instance_id}' is healthy in participating TargetGroups.", {})
+    return (True, f"Instance '{instance_id}' is healthy in participating target groups.", {})
 
 def terminate_instance():
     instance    = states["InstanceStateCheckpoint"]
@@ -1091,7 +1100,7 @@ steps = [
         "IfArgs": "check_targetgroups",
         "PrettyName": "DrainElbTargetGroups",
         "Function": drain_elb_target_groups,
-        "Description": "Wait for drainage of ELB targets..."
+        "Description": "Wait for drainage from ELB target groups..."
     },
     {
         "Name" : "stop_instance",
@@ -1194,7 +1203,7 @@ steps = [
         "IfArgs": "check_targetgroups",
         "PrettyName": "RegisterToElbTargetGroups",
         "Function": register_to_elb_target_groups,
-        "Description": "Register to ELB target groups.."
+        "Description": "Register instance to ELB target groups.."
     },
     {
         "Name" : "reboot_if_needed",
@@ -1213,7 +1222,7 @@ steps = [
         "IfArgs": "wait_for_tg_health",
         "PrettyName" : "WaitTargetGroups",
         "Function": wait_target_groups,
-        "Description": "Waiting for instance to be healthy in TargetGroups..."
+        "Description": "Waiting for instance to be healthy in target groups..."
     },
     {
         "Name" : "deregister_image",
