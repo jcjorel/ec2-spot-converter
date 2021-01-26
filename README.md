@@ -150,7 +150,8 @@ If you want to convert **Spot-to-Spot** or **OnDemand-to-OnDemand**, specify `--
 
 ### Preserve ELB target group registrations
 
-The tool can preserve the target group registrations of the converted instance. 
+The tool can preserve the target group registrations of the converted instance. As the conversion is based on the termination of the specified
+instance Id, all references in target groups of this instance Id need to be updated with the new instance Id created during the conversion.
 
 The feature is enabled by setting option `--check-targetgroups` with either a list of target group ARNs to inspect or the wildcard 
 character `'*'` which means all target groups in the account and
