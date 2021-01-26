@@ -563,7 +563,7 @@ def get_elb_targets(instance_id):
     if "*" not in args["check_targetgroups"]:
         query_parameters["TargetGroupArns"] = args["check_targetgroups"]
     response_iterator = paginator.paginate(**query_parameters)
-    targetgroups = []
+    targetgroups      = []
     for response in response_iterator:
         logger.debug(response)
         for t in response["TargetGroups"]:
@@ -574,8 +574,8 @@ def get_elb_targets(instance_id):
     logger.info(f"{nb_of_targetgroups} target groups of type 'instance' will be inspected for possible instance membership. "
             "Note: A large number of target groups could take a lot of time to processs.")
 
-    targets      = []
-    count        = 0
+    targets = []
+    count   = 0
     for target_group in targetgroups:
         count += 1
         if count % 20 == 0:
@@ -597,7 +597,7 @@ def get_elb_targets(instance_id):
 
 def deregister_from_target_groups():
     if "ELBTargets" not in states:
-        return (True, f"No TargetGroup to deregister from", {})
+        return (True, f"No target group to deregister from", {})
     targets      = states["ELBTargets"]
     instance     = states["InitialInstanceState"]
     instance_id  = instance["InstanceId"]
