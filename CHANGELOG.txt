@@ -1,5 +1,6 @@
 v0.9.0:
-- (Improvment/Major) Added support for ELB target group registration preservation (Thanks @regevbr for this nice contribution!). WARNING: The IAM policy document has been updated to allow ELBv2 API needed by the feature.
+- (Improvment/Major) Added support for ELB target group registration preservation (Thanks @regevbr for this nice contribution!). 
+	WARNING: The IAM policy document has been updated to allow ELBv2 API needed by the feature.
 - (Bug/Minor) Fixed inability to cancel a Spot resquest in 'open' state.
 - (Bug/Minor) Fixed broken debug mode.
 
