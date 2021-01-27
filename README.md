@@ -114,7 +114,7 @@ The operation is similar to the Spot model conversion with the difference that t
 
 ### Convert a Spot instance to Spot model to change the instance type and/or CPU Options
 
-`ec2-spot-converter`tool can be used to replace a Spot instance by another one just changing the instance type. This operation is not 
+`ec2-spot-converter` tool can be used to replace a Spot instance by another one just changing the instance type. This operation is not 
 yet possible "in-place" through an AWS EC2 API so the tool will terminate and replace the Spot instance preserving all attributes but
 updating the instance type (or CPU options) during the process.
 
@@ -161,7 +161,7 @@ region. **As an AWS account can contain up to 3000 target groups and induce long
 Optionally, the tool can wait, at end of conversion, for the newly created instance to reach one of specified health states in 
 all participating target groups.
 Specify `--wait-for-tg-states` setting without argument to wait for the `["unused", "healthy"]` states or provide a list of expected target group states 
-(ex: specify both `unhealthy` and `healthy` to exit from the tool after the `initial` phase even in case failure to pass health checks).
+(ex: specify both `unhealthy` and `healthy` to exit from the tool after the `initial` phase even in case of failure to pass health checks).
 
 # Command line usage
 
