@@ -37,6 +37,7 @@
 	"elasticloadbalancing:DescribeTargetHealth",
 	"elasticloadbalancing:DescribeTargetGroups",
 	"elastic-inference:*",
+	"iam:PassRole",
 	"kms:DescribeKey"
       ],
       "Resource": "*"
