@@ -175,7 +175,7 @@ Specify `--update-cw-alarms` optionally with arguments:
 * When no argument is specified (or `'*'`), all existing CloudWatch alarms in the current account will be searched for instance id reference,
 * When arguments are specified, they are used as CloudWatch alarm prefixes to filterin only a subset of existing alarms (=faster processing).
 
-**Only alarms with a Dimension named `InstanceId` and the value of the converted Instance Id will be updated.**
+**Only alarms referring to a metric with a dimension named `InstanceId` and the value of the converted Instance Id will be updated.**
 
 As an AWS account can contain thousands of CloudWatch alarms, this feature is disabled by default.
 
