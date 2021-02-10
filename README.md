@@ -153,7 +153,7 @@ If you want to convert **Spot-to-Spot** or **OnDemand-to-OnDemand**, specify `--
 ### Preserve ELB target group registrations
 
 The tool can preserve the target group registrations of the converted instance. As the conversion is based on the termination of the specified
-instance Id, all references in target groups of this instance Id need to be updated with the new instance Id created during the conversion.
+instance Id, all references in target groups of this instance Id must be updated with the new instance Id created during the conversion.
 
 The feature is enabled by setting option `--check-targetgroups` with either a list of target group ARNs to inspect or the wildcard 
 character `'*'` which means all target groups in the account and
@@ -169,7 +169,7 @@ Specify `--wait-for-tg-states` setting without argument to wait for the `["unuse
 As the tool creates a new instance (so with a new instance id), by default, all existing CloudWatch alarms that refer to the original converted instance Id
 becomes stale as pointing on a terminated instance Id.
 
-This behavior can be changed by specifying that these CloudWatch alarms need to be updated with the new Instance Id by the tool as part of the conversion.
+This behavior can be changed by specifying that these CloudWatch alarms must be updated with the new Instance Id as part of the conversion.
 
 Specify `--update-cw-alarms` optionally with arguments:
 * When no argument is specified (or `'*'`), all existing CloudWatch alarms in the current account will be searched for instance id reference,
