@@ -167,7 +167,7 @@ Specify `--wait-for-tg-states` setting without argument to wait for the `["unuse
 ### Update CloudWatch Alarms referring the converted Instance Id
 
 As the tool creates a new instance (so with a new instance id), by default, all existing CloudWatch alarms, that refer to the original converted instance Id,
-become stale as pointing on a terminated instance Id.
+become stale because pointing on a metric associated to a terminated instance Id.
 
 This behavior can be changed by specifying that these CloudWatch alarms must be updated with the new Instance Id as part of the conversion.
 
