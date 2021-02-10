@@ -5,6 +5,8 @@
       "Sid": "ec2spotconverter",
       "Effect": "Allow",
       "Action": [
+	"cloudwatch:DescribeAlarms",
+	"cloudwatch:PutMetricAlarm",
 	"dynamodb:CreateTable",
 	"dynamodb:DeleteItem",
 	"dynamodb:GetItem",

@@ -62,6 +62,7 @@ try:
     elastic_inference_client = boto3.client("elastic-inference", config=config)
     kms_client               = boto3.client("kms",               config=config)
     elbv2_client             = boto3.client("elbv2",             config=config)
+    cloudwatch_client        = boto3.client("cloudwatch",        config=config)
 except NoRegionError as e:
     print("Please specify an AWS region (either with AWS_DEFAULT_REGION environment variable or using cli profiles - see "
             "https://docs.aws.amazon.com/cli/latest/reference/configure/)!")
@@ -1048,6 +1049,62 @@ def reboot_if_needed():
         "Rebooted": True
         })
 
+def update_cloudwatch_alarms():
+    new_instance_id = states["NewInstanceId"]
+    instance        = states["InitialInstanceState"]
+    instance_id     = instance["InstanceId"]
+
+    all_alarms = len(args["update_cw_alarms"]) == 0 or "*" in args["update_cw_alarms"]
+
+    # Prepare the queries
+    queries = []
+    if all_alarms:
+        queries.append({}) # Query all existing CloudWatch alarms
+    else:
+        for prefix in args["update_cw_alarms"]:
+            queries.append({
+                "AlarmNamePrefix": prefix
+                })
+
+    # Gather alarms that reference the converted Instance Id
+    matching_alarm_names = []
+    matching_alarms      = []
+    for query in queries:
+        paginator = cloudwatch_client.get_paginator('describe_alarms')
+        for page in paginator.paginate(**query):
+            if "MetricAlarms" in page:
+                alarms = page["MetricAlarms"]
+                for alarm in alarms:
+                    alarm_name = alarm["AlarmName"]
+                    if alarm_name in matching_alarm_names:
+                        continue
+                    dimensions = alarm["Dimensions"]
+                    instance_id_ref = next(filter(lambda d: d["Name"] == "InstanceId" and d["Value"] == instance_id, dimensions), None)
+                    if instance_id_ref is not None:
+                        matching_alarm_names.append(alarm_name)
+                        matching_alarms.append(alarm)
+
+    # Update matching alarms
+    for alarm in matching_alarms:
+        alarm_name = alarm["AlarmName"]
+        alarm_arn  = alarm["AlarmArn"]
+        dimensions = alarm["Dimensions"]
+        logger.info(f"Updating CloudWatch alarm '{alarm_name}' ({alarm_arn})...")
+        instance_id_ref = next(filter(lambda d: d["Name"] == "InstanceId", dimensions), None)
+        instance_id_ref["Value"] = new_instance_id
+        params = alarm.copy()
+        for p in alarm:
+            if p not in ["AlarmName", "AlarmDescription", "ActionsEnabled", "OKActions", "AlarmActions", "InsufficientDataActions", 
+                    "MetricName", "Namespace", "Statistic", "ExtendedStatistic", "Dimensions", "Period", "Unit", "EvaluationPeriods", 
+                    "DatapointsToAlarm", "Threshold", "ComparisonOperator", "TreatMissingData", "EvaluateLowSampleCountPercentile", 
+                    "Metrics", "Tags", "ThresholdMetricId"]:
+                del params[p] # Remove unknown parameter key
+        cloudwatch_client.put_metric_alarm(**params)
+        time.sleep(0.2) # Not too fast to avoid throttling
+
+    return (True, f"Updated CloudWatch alarms '{matching_alarm_names}'.", {})
+
+
 def untag_resources():
     instance_id   = states["NewInstanceId"]
     orig_instance = states["ConversionStartInstanceState"]
@@ -1231,6 +1288,13 @@ steps = [
         "Description": "Reboot new instance (if needed and requested)..."
     },
     {
+        "Name" : "update_cloudwatch_alarms",
+        "IfArgs": "update_cw_alarms",
+        "PrettyName" : "UpdateCloudwathAlarms",
+        "Function": update_cloudwatch_alarms,
+        "Description": "Update CloudWatch alarms..."
+    },
+    {
         "Name" : "untag_resources",
         "PrettyName" : "UntagResources",
         "Function": untag_resources,
@@ -1326,6 +1390,10 @@ def main(argv):
             action='store_true', required=False, default=argparse.SUPPRESS)
     parser.add_argument('--reboot-if-needed', help="Reboot the new instance if needed.", 
             action='store_true', required=False, default=argparse.SUPPRESS)
+    parser.add_argument('--update-cw-alarms', help="Update CloudWatch alarms with reference to the converted Instance Id. "
+            "Optionnaly, a CloudWatch alarm name prefix list can be supplied to narrow instance id lookup to a subset of matching alarm names. "
+            "Without args, all CloudWatch alarms in the current account will investigated.",
+            nargs='*', required=False, default=argparse.SUPPRESS)
     parser.add_argument('--delete-ami', help="Delete AMI at end of conversion.", 
             action='store_true', required=False, default=argparse.SUPPRESS)
     parser.add_argument('--check-targetgroups', help="List of target group ARNs to look for converted instance registrations. Wildcard '*' means all "

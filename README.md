@@ -6,6 +6,7 @@ Elastic Inference accelerators, Elastic GPUs.
 
 Others features:
 * Can preserve ELB Target Group instance registrations (disabled by default),
+* Can update existing CloudWatch alarms referring the converted Instance Id (disabled by default),
 * Can also perform **Spot-to-Spot** and **OnDemand-to-OnDemand** conversions:
 	* Allow replacement of existing Spot instances with new "identical" ones to update the instance type and CPU options,
 	* Help to fix some Spot instance conditions (Ex: *'IncorrectSpotRequestState Exception'*),
@@ -162,6 +163,21 @@ Optionally, the tool can wait, at end of conversion, for the newly created insta
 all participating target groups.
 Specify `--wait-for-tg-states` setting without argument to wait for the `["unused", "healthy"]` states or provide a list of expected target group states 
 (ex: specify both `unhealthy` and `healthy` to exit from the tool after the `initial` phase even in case of failure to pass health checks).
+
+### Update CloudWatch Alarms referring the converted Instance Id
+
+As the tool creates a new instance (so with a new instance id), by default, all existing CloudWatch alarms that refer to the original converted instance Id
+becomes stale as pointing on a terminated instance Id.
+
+This behavior can be changed by specifying that these CloudWatch alarms need to be updated with the new Instance Id by the tool as part of the conversion.
+
+Specify `--update-cw-alarms` optionally with arguments:
+* When no argument is specified (or `'*'`), all existing CloudWatch alarms in the current account will be searched for instance id reference,
+* When arguments are specified, they are used as CloudWatch alarm prefixes to filterin only a subset of existing alarms (=faster processing).
+
+**Only alarms with a Dimension named `InstanceId` and the value of the converted Instance Id will be updated.**
+
+As an AWS account can contain thousands of CloudWatch alarms, this feature is disabled by default.
 
 # Command line usage
 
