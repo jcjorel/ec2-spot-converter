@@ -188,7 +188,9 @@ usage: ec2-spot-converter [-h] -i INSTANCE_ID [-m {spot,on-demand}]
                           [--cpu-options CPU_OPTIONS]
                           [--max-spot-price MAX_SPOT_PRICE]
                           [--volume-kms-key-id VOLUME_KMS_KEY_ID] [-s]
-                          [--reboot-if-needed] [--delete-ami]
+                          [--reboot-if-needed]
+                          [--update-cw-alarms [UPDATE_CW_ALARMS [UPDATE_CW_ALARMS ...]]]
+                          [--delete-ami]
                           [--check-targetgroups CHECK_TARGETGROUPS [CHECK_TARGETGROUPS ...]]
                           [--wait-for-tg-states [{unused,unhealthy,healthy,initial,draining} [{unused,unhealthy,healthy,initial,draining} ...]]]
                           [--do-not-require-stopped-instance] [-r]
@@ -235,6 +237,13 @@ optional arguments:
   -s, --stop-instance   Stop instance instead of failing because it is in
                         'running' state.
   --reboot-if-needed    Reboot the new instance if needed.
+  --update-cw-alarms [UPDATE_CW_ALARMS [UPDATE_CW_ALARMS ...]]
+                        Update CloudWatch alarms with reference to the
+                        converted Instance Id. Optionnaly, a CloudWatch alarm
+                        name prefix list can be supplied to narrow instance id
+                        lookup to a subset of matching alarm names. Without
+                        args, all CloudWatch alarms in the current account
+                        will be searched.
   --delete-ami          Delete AMI at end of conversion.
   --check-targetgroups CHECK_TARGETGROUPS [CHECK_TARGETGROUPS ...]
                         List of target group ARNs to look for converted

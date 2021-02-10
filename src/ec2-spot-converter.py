@@ -1392,7 +1392,7 @@ def main(argv):
             action='store_true', required=False, default=argparse.SUPPRESS)
     parser.add_argument('--update-cw-alarms', help="Update CloudWatch alarms with reference to the converted Instance Id. "
             "Optionnaly, a CloudWatch alarm name prefix list can be supplied to narrow instance id lookup to a subset of matching alarm names. "
-            "Without args, all CloudWatch alarms in the current account will investigated.",
+            "Without args, all CloudWatch alarms in the current account will be searched.",
             nargs='*', required=False, default=argparse.SUPPRESS)
     parser.add_argument('--delete-ami', help="Delete AMI at end of conversion.", 
             action='store_true', required=False, default=argparse.SUPPRESS)
