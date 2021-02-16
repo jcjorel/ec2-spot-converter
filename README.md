@@ -5,12 +5,12 @@ instance attributes (Launch configuration, Tags..), network attributes (existing
 Elastic Inference accelerators, Elastic GPUs. 
 
 Others features:
-* Can preserve ELB Target Group instance registrations (disabled by default),
-* Can update existing CloudWatch alarms referring the converted Instance Id (disabled by default),
 * Can also perform **Spot-to-Spot** and **OnDemand-to-OnDemand** conversions:
 	* Allow replacement of existing Spot instances with new "identical" ones to update the instance type and CPU options,
 	* Help to fix some Spot instance conditions (Ex: *'IncorrectSpotRequestState Exception'*),
 	* Allow Root Disk encryption during conversion.
+* Can preserve ELB Target Group instance registrations (disabled by default),
+* Can update existing CloudWatch alarms referring the converted Instance Id (disabled by default),
 
 Conversion time ranges from 2 to 5 minutes depending on the instance type.
 
