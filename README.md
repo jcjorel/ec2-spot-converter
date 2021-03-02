@@ -192,7 +192,7 @@ usage: ec2-spot-converter [-h] -i INSTANCE_ID [-m {spot,on-demand}]
                           [--reboot-if-needed]
                           [--update-cw-alarms [UPDATE_CW_ALARMS [UPDATE_CW_ALARMS ...]]]
                           [--delete-ami]
-                          [--check-targetgroups CHECK_TARGETGROUPS [CHECK_TARGETGROUPS ...]]
+                          [--check-targetgroups [CHECK_TARGETGROUPS [CHECK_TARGETGROUPS ...]]]
                           [--wait-for-tg-states [{unused,unhealthy,healthy,initial,draining} [{unused,unhealthy,healthy,initial,draining} ...]]]
                           [--do-not-require-stopped-instance] [-r]
                           [--dynamodb-tablename DYNAMODB_TABLENAME]
@@ -246,7 +246,7 @@ optional arguments:
                         args, all CloudWatch alarms in the current account
                         will be searched.
   --delete-ami          Delete AMI at end of conversion.
-  --check-targetgroups CHECK_TARGETGROUPS [CHECK_TARGETGROUPS ...]
+  --check-targetgroups [CHECK_TARGETGROUPS [CHECK_TARGETGROUPS ...]]
                         List of target group ARNs to look for converted
                         instance registrations. Wildcard '*' means all ELB
                         target groups in the current account and region
