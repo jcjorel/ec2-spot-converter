@@ -1,3 +1,6 @@
+v0.11.0:
+- (Improvment/Major) Volume tags are now preserved during migration.
+
 v0.10.0:
 - (Improvment/Major) Added --update-cw-alarms parameter to specify that CloudWatchs alarm referring the converted Instance Id need to be updated.
 	WARNING: The IAM policy document has been updated to allow CloudWatch API needed by the feature.
