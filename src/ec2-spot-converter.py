@@ -970,11 +970,28 @@ def wait_new_instance():
         })
 
 def reattach_volumes():
-    instance_id   = states["NewInstanceId"]
-    orig_instance = states["ConversionStartInstanceState"]
-    volume_ids    = states["DetachedVolumes"]
+    old_instance_id = states["InitialInstanceState"]["InstanceId"]
+    instance_id     = states["NewInstanceId"]
+    orig_instance   = states["ConversionStartInstanceState"]
+    volume_ids      = states["DetachedVolumes"]
+    volume_details  = states["VolumeDetails"]
     
-    current_blks  = get_instance_details(instance_id=instance_id)["BlockDeviceMappings"]
+    current_blks    = get_instance_details(instance_id=instance_id)["BlockDeviceMappings"]
+    for detail in volume_details:
+        vol         = detail["VolumeId"]
+        if vol in volume_ids: # Exclude detached volumes
+            continue
+        tags        = detail["Tags"]
+        if len(tags) == 0:
+            continue
+        attachments = detail["Attachments"]
+        devicename  = next(filter(lambda d: d["InstanceId"] == old_instance_id, attachments))["Device"]
+        blk         = next(filter(lambda v: v["DeviceName"] == devicename, current_blks))
+        new_vol     = blk["Ebs"]["VolumeId"]
+        logger.info(f"Restoring tags on volume {new_vol} ({devicename})...") 
+        response    = ec2_client.create_tags(Resources=[new_vol], Tags=tags) 
+        logger.debug(response)
+
     attached_ids  = []
     for vol in volume_ids:
         if next(filter(lambda v: v["Ebs"]["VolumeId"] == vol, current_blks), None) is not None:
@@ -994,6 +1011,7 @@ def reattach_volumes():
     return (True, f"Successfully reattached volumes {attached_ids}...", {
         "ReattachedVolumesInstanceState": get_instance_details(instance_id=instance_id)
         })
+
 
 def configure_network_interfaces():
     new_instance  = states["ReattachedVolumesInstanceState"]
