@@ -248,12 +248,12 @@ optional arguments:
   --delete-ami          Delete AMI at end of conversion.
   --check-targetgroups [CHECK_TARGETGROUPS [CHECK_TARGETGROUPS ...]]
                         List of target group ARNs to look for converted
-                        instance registrations. Wildcard '*' means all ELB
-                        target groups in the current account and region
+                        instance registrations. Without parameter specified,
+                        it means all ELB target groups in the current region
                         (WARNING: An account can contain up to 3000 target
-                        groups and induce long processing time). Default: None
-                        (means no target group registration preservation by
-                        default)
+                        groups and induce long processing time). Default:
+                        Feature is disabled when option is not on the command
+                        line.
   --wait-for-tg-states [{unused,unhealthy,healthy,initial,draining} [{unused,unhealthy,healthy,initial,draining} ...]]
                         Wait for target group registrations to reach specified
                         state(s) at end of conversion. Default: ['unused',
