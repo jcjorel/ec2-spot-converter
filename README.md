@@ -155,8 +155,8 @@ If you want to convert **Spot-to-Spot** or **OnDemand-to-OnDemand**, specify `--
 The tool can preserve the target group registrations of the converted instance. As the conversion is based on the termination of the specified
 instance Id, all references in target groups of this instance Id must be updated with the new instance Id created during the conversion.
 
-The feature is enabled by setting option `--check-targetgroups` with either a list of target group ARNs to inspect or the wildcard 
-character `'*'` which means all target groups in the account and
+The feature is enabled by setting option `--check-targetgroups` with either a list of target group ARNs to inspect or 
+no parameter which means all target groups in the account and
 region. **As an AWS account can contain up to 3000 target groups and induce long processing times, the feature is disabled by default**.
 
 Optionally, the tool can wait, at end of conversion, for the newly created instance to reach one of specified health states in 

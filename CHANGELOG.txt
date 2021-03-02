@@ -1,5 +1,6 @@
 v0.11.0:
 - (Improvment/Major) Volume tags are now preserved during migration.
+- (Improvment/Minor) In order to reduce bad command line substitutions, --check-targetgroups option does not require anymore the '*' character to express all target groups into the account. Simply provide --check-targetgroups without any parameter instead.
 
 v0.10.0:
 - (Improvment/Major) Added --update-cw-alarms parameter to specify that CloudWatchs alarm referring the converted Instance Id need to be updated.

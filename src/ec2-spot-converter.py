@@ -563,7 +563,7 @@ def get_elb_targets(instance_id):
                 'PageSize': 200
             }
         }
-    if "*" not in args["check_targetgroups"]:
+    if len(args["check_targetgroups"]) or "*" not in args["check_targetgroups"]:
         query_parameters["TargetGroupArns"] = args["check_targetgroups"]
     response_iterator = paginator.paginate(**query_parameters)
     targetgroups      = []
@@ -1417,7 +1417,7 @@ def main(argv):
     parser.add_argument('--check-targetgroups', help="List of target group ARNs to look for converted instance registrations. Wildcard '*' means all "
             "ELB target groups in the current account and region (WARNING: An account can contain up to 3000 target groups and induce long "
             "processing time). Default: None (means no target group registration preservation by default)",
-            nargs='+', required=False, default=argparse.SUPPRESS)
+            nargs='*', required=False, default=argparse.SUPPRESS)
     parser.add_argument('--wait-for-tg-states', help="Wait for target group registrations to reach specified state(s) at end of "
             "conversion. Default: ['unused', 'healthy']",
             nargs='*', required=False, choices=["unused", "unhealthy", "healthy", "initial", "draining"])
