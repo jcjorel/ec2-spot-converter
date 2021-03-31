@@ -981,7 +981,7 @@ def reattach_volumes():
         vol         = detail["VolumeId"]
         if vol in volume_ids: # Exclude detached volumes
             continue
-        tags        = detail["Tags"]
+        tags        = detail["Tags"] if "Tags" in detail else []
         if len(tags) == 0:
             continue
         attachments = detail["Attachments"]
