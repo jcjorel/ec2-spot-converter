@@ -1,3 +1,7 @@
+v0.12.1:
+- (Bug/Minor) Fixed an exception while attempting to display instance diff when converted instance has no tags.
+- (Improvment/Minor) Set the timeout for AMI generation to 4 hours as, in rare circumstances, creating an Image can take a very long time at EC2 side...
+
 v0.12.0:
 - (Bug/Major) Fixed error when tags are not set on volumes.
 

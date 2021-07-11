@@ -514,7 +514,7 @@ def prepare_network_interfaces():
 
 def wait_ami():
     ami_id       = states["ImageId"]
-    max_attempts = 120 
+    max_attempts = 720 
     image_state  = ""
     while max_attempts and image_state != "available":
         response      = ec2_client.describe_images(ImageIds=[ami_id])
@@ -1340,7 +1340,7 @@ def review_conversion_results():
     # Ensure the details are sorted the same way
     initial_instance_state["NetworkInterfaces"]   = sorted(initial_instance_state["NetworkInterfaces"], 
             key=lambda i: int(i["Attachment"]["DeviceIndex"]))
-    initial_instance_state["Tags"]                = sorted(initial_instance_state["Tags"], key=lambda t: t["Key"])
+    initial_instance_state["Tags"]                = sorted(initial_instance_state.get("Tags", {}), key=lambda t: t["Key"])
     initial_instance_state["BlockDeviceMappings"] = sorted(initial_instance_state["BlockDeviceMappings"], key=lambda t: t["DeviceName"])
     o_file.write(bytes(pprint(initial_instance_state), "utf-8"))
 
@@ -1349,7 +1349,7 @@ def review_conversion_results():
     # Ensure the details are sorted the same way
     final_instance_state["NetworkInterfaces"]   = sorted(final_instance_state["NetworkInterfaces"], 
             key=lambda i: int(i["Attachment"]["DeviceIndex"]))
-    final_instance_state["Tags"]                = sorted(final_instance_state["Tags"], key=lambda t: t["Key"])
+    final_instance_state["Tags"]                = sorted(final_instance_state.get("Tags", {}), key=lambda t: t["Key"])
     final_instance_state["BlockDeviceMappings"] = sorted(final_instance_state["BlockDeviceMappings"], key=lambda t: t["DeviceName"])
     n_file.write(bytes(pprint(final_instance_state), "utf-8"))
     os.system("vim -c ':syntax off' -d %s %s" % (o_file.name, n_file.name))
