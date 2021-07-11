@@ -222,6 +222,18 @@ def discover_instance_state():
     set_state("ToolVersion", VERSION)
 
     # Sanity check
+    
+    # Check that the tool is not launched from the converted instance id
+    try:
+        tool_instance_id = open("/sys/class/dmi/id/board_asset_tag").read().split("\n")[0]
+        if tool_instance_id == instance_id:
+            return (False, f"Can't start conversion of instance {instance_id} as it is the one from where "
+                    "you are executing the tool. Please use another EC2 instance to execute 'ec2-spot-converter'!", {})
+    except:
+        # Can't guess local instance id. No sanity check
+        pass
+
+    # Check state of DisableApiTermination of the EC2 instance
     response               = ec2_client.describe_instance_attribute(Attribute='disableApiTermination', InstanceId=instance_id)
     logger.debug(response)
     termination_protection = response["DisableApiTermination"]["Value"]
