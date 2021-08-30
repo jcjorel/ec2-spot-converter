@@ -1,3 +1,6 @@
+v0.13.1:
+- (Bug/Major) CPU options is only supported on x86_64 instance types (Especially, Graviton based instances are not supported).
+
 v0.13.0:
 - (Improvment/Minor) Added sanity check to forbid launching 'ec2-spot-converter' tool on the converted instance.
 

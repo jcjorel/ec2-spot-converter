@@ -912,7 +912,7 @@ def create_new_instance():
         elif args.get("cpu_options") != 'ignore':
             # Preserve CpuOptions only if we do not force the instance type
             instance_family = instance_type.split('.')[0]
-            if instance_family not in ["t2", "m1", "m2", "m3"]:
+            if instance["Architecture"] in ["x86_64"] and instance_family not in ["t2", "m1", "m2", "m3"]:
                 launch_specifications["CpuOptions"] = instance["CpuOptions"]
     if cpu_options is not None:
         launch_specifications["CpuOptions"] = cpu_options
