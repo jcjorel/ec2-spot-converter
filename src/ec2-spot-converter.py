@@ -837,7 +837,6 @@ def create_new_instance():
             'EbsOptimized': instance["EbsOptimized"],
             'ImageId': ami_id,
             'InstanceType': instance["InstanceType"] if not "target_instance_type" in args else args["target_instance_type"],
-            'KeyName': instance["KeyName"],
             'Monitoring': {
                 'Enabled': instance["Monitoring"]["State"] in ["enabled", "pending"],
             },
@@ -850,6 +849,9 @@ def create_new_instance():
             'MaxCount': 1,
             'MinCount': 1
         }
+
+    if "KeyName" in instance:
+        launch_specifications["KeyName"] = instance["KeyName"]
 
     if "MetadataOptions" in instance:
         meta_options = instance["MetadataOptions"]
