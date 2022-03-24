@@ -875,7 +875,7 @@ def create_new_instance():
             launch_specifications['HibernationOptions'] = instance["HibernationOptions"]
 
     if "InstanceInitiatedShutdownBehavior" in instance:
-        launch_specifications['InstanceInitiatedShutdownBehavior']: instance["InstanceInitiatedShutdownBehavior"]
+        launch_specifications['InstanceInitiatedShutdownBehavior'] = instance["InstanceInitiatedShutdownBehavior"]
 
     if "ElasticGpuAssociations" in instance:
         launch_specifications['ElasticGpuSpecification'] = []

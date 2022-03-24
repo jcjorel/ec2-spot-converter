@@ -1,3 +1,6 @@
+v0.13.3:
+ (Bug/Minor) Fixed handling of InstanceInitiatedShutdownBehavior EC2 launch parameter.
+
 v0.13.2:
 - (Bug/Major) It is now possible to convert instances created without SSH key pair specified.
 
