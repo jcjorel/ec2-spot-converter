@@ -435,13 +435,13 @@ def detach_volumes():
         "WithoutExtraVolumesInstanceState": get_instance_details()
         })
 
-def wait_volume_detach():
-    instance    = states["ConversionStartInstanceState"]
-    instance_id = instance["InstanceId"]
-    volume_ids  = states["DetachedVolumes"]
+def _wait_volume_detach(volume_ids, instance_id):
     max_attempts = 300/5
     while max_attempts and len(volume_ids):
-        response = ec2_client.describe_volumes(VolumeIds=volume_ids)
+        try:
+            response = ec2_client.describe_volumes(VolumeIds=volume_ids)
+        except:
+            break
         logger.debug(response)
         max_attempts -= 1
         not_avail = [vol for vol in response["Volumes"] if vol["State"] != "available"]
@@ -460,6 +460,12 @@ def wait_volume_detach():
         return (False, f"Not all volume where 'available' before timeout : {volume_ids}.", {})
     time.sleep(1) # Superstition...
     return (True, f"All detached volumes are 'available' : {volume_ids}.", {})
+
+def wait_volume_detach():
+    instance    = states["ConversionStartInstanceState"]
+    instance_id = instance["InstanceId"]
+    volume_ids  = states["DetachedVolumes"]
+    return _wait_volume_detach(volume_ids, instance_id)
 
 def create_ami():
     vol_details = states["VolumeDetails"]
@@ -730,7 +736,8 @@ def terminate_instance():
 
 def wait_resource_release():
     instance    = states["InstanceStateCheckpoint"]
-    eni_ids       = [eni["NetworkInterfaceId"] for eni in instance["NetworkInterfaces"]]
+
+    eni_ids      = [eni["NetworkInterfaceId"] for eni in instance["NetworkInterfaces"]]
     max_attempts = 300/5
     while max_attempts and len(eni_ids):
         response = ec2_client.describe_network_interfaces(NetworkInterfaceIds=eni_ids)
@@ -756,7 +763,25 @@ def wait_resource_release():
     if max_attempts == 0:
         return (False, f"Instance took too long to go to 'terminated' state (???).", {})
 
-    time.sleep(2) # Superstition... Without proofs, we BELIEVE that it is good to not rush to create the new instance...
+    # Manage special case of root device
+    instance    = states["InitialInstanceState"]
+    instance_id = instance["InstanceId"]
+    root_device = instance["RootDeviceName"]
+    for blk in instance["BlockDeviceMappings"]:
+        vol = blk["Ebs"]["VolumeId"]
+        if root_device == blk["DeviceName"] and not bool(blk["Ebs"]["DeleteOnTermination"]):
+            logger.info(f"Root volume {vol} is marked as DeleteOnTermination=false. As the root volume is always part of the created AMI, we forcibly "
+                    "delete this volume to avoid a leakage.")
+            result, reason, keys = _wait_volume_detach([vol], instance_id)
+            if not result:
+                return (result, reason, keys)
+            logger.info(f"Deleting root volume {vol}...")
+            try:
+                ec2_client.delete_volume(VolumeId=vol)
+            except Exception as e:
+                logger.warning(f"Failed to delete root volume {vol}... Ignored... : {e}")
+            break
+
     return (True, f"All resources released : {eni_ids}.", {})
 
 def create_new_instance():

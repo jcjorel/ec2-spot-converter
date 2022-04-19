@@ -1,5 +1,8 @@
+v0.13.4:
+- (Bug/Major) Fixed EBS volume leakage when Root volume has DeleteOnTermination=false.
+
 v0.13.3:
- (Bug/Minor) Fixed handling of InstanceInitiatedShutdownBehavior EC2 launch parameter.
+- (Bug/Minor) Fixed handling of InstanceInitiatedShutdownBehavior EC2 launch parameter.
 
 v0.13.2:
 - (Bug/Major) It is now possible to convert instances created without SSH key pair specified.
