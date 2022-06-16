@@ -505,10 +505,21 @@ def create_ami():
             raise e
         # Fall through when the AMI is already under creation. Could happen in case of step replay after tool interuption
 
-    response = ec2_client.describe_images(Filters=[{
-        'Name': 'name',
-        'Values': [image_name]
-        }])
+    i = 10
+    while (i != 0):
+        response = ec2_client.describe_images(Filters=[{
+            'Name': 'name',
+            'Values': [image_name]
+            }])
+        if (len(response["Images"]) != 0):
+            break
+        i -= 1
+        logger.info("Waiting for AMI creation to start...")
+        time.sleep(5);
+
+    if (i == 0):
+        return (False, f"Failed to get ImageId (issue at EC2 API side???) Please try again later...", {})
+
     image_id = response["Images"][0]["ImageId"]
     return (True, f"AMI image {image_name}/{image_id} started.", {
         "VolumesInAMI": kept_blks,

@@ -1,3 +1,7 @@
+v0.13.5:
+- (Bug/Major) Fixed some rare failure cases when EC2 create_image API take few seconds to return the AMI Id.
+
+
 v0.13.4:
 - (Bug/Major) Fixed EBS volume leakage when Root volume has DeleteOnTermination=false.
 
