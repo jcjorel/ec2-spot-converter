@@ -293,7 +293,7 @@ def discover_instance_state():
             logger.warning("Pausing 10s... PLEASE READ ABOVE IMPORTANT WARNING!!! DO 'Ctrl-C' NOW IF YOU NEED SOME TIME TO READ!!")
             time.sleep(10)
     if args["do_not_require_stopped_instance"]:
-        if "stop_instance" in args:
+        if args.get("stop_instance") == True:
             logger.warning("/!\ WARNING /!\ --do-not-require-stopped-instance option is set! As --stop-instance is also set, a stop command "
                 "is going to be tried. If it fails, the conversion will continue anyway.") 
         else:
@@ -325,7 +325,7 @@ def discover_instance_state():
     # 'stopped' state management.
     instance_state = instance["State"]["Name"]
 
-    if instance_state != "stopped" and "stop_instance" not in args and "do_not_require_stopped_instance" not in args:
+    if instance_state != "stopped" and args.get("stop_instance") != True and args.get("do_not_require_stopped_instance") != True:
         return (False, f"Instance '{instance_id}' must be in 'stopped' state (current={instance_state}) ! Use --stop-instance if you want to stop it.", {})
 
     return (True, f"Instance is in state {instance_state}...", {
@@ -343,7 +343,7 @@ def stop_instance():
     instance_id    = instance["InstanceId"]
     instance_state = instance["State"]["Name"]
 
-    if "do_not_require_stopped_instance" in args:
+    if args.get("do_not_require_stopped_instance") == True:
         return (True, f"Instance '{instance_id}' won't be stopped as --do-not-require-stopped-instance is set.", {"FailedStop": True})
 
     failed_stop = False
