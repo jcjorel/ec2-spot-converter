@@ -294,9 +294,9 @@ allowing to reconstruct the original instance by hand. **In such event, please a
 > **BE CAREFUL ABOUT AUTOMATIC REMEDIATION CONFIGURED IN YOUR LANDING-ZONE!** That's good practice to enable periodic checks in a LZ to 
 enforce a known state of your EC2 resources (ex: compliant tagging, delete unattached Security Groups or EBS volumes etc...). Some ec2-spot-converter 
 users encountered failed conversions or non-identical resulting EC2 induced by these LZ remediation mecanisms that altered resources 
-during conversion. In order to avoid such issues, ec2-spot-converter tags all converted ressources with 'ec2-spot-converter:job-id' 
+during conversion. **In order to avoid such issues, ec2-spot-converter tags all converted ressources with '*ec2-spot-converter:job-id*' 
 (with value set to {instance-id}). Thanks to this transient tag, LZ remediation mecanisms should be modified to detect and ignore safely
-ressources under conversion.
+ressources under conversion.**
 
 ## Contributing
 
