@@ -1,3 +1,6 @@
+v0.14.1:
+- (Bug/Major) Fixed regression introduced in v0.14.0 that altered logic of '--stopped-instance' and '--do-not-require-stopped-instance' combination (v.14.0 release has been removed to prevent download).
+
 v0.14.0:
 - (Improvment/Minor) Even if ec2-spot-converter primary intent is not to convert IaaC created ressources (with CloudFormaiton for instance), some users expressed this need. To enable this side use-case, during a conversion, all tags prefixed with the reserved namespace 'aws:' are renamed with '_aws:'.
 - (Improvment/Major) Added an explicit comment in README.md about the transient tag 'ec2-spot-converter:job-id' that existing Landing-Zone automatic remediation mecanisms should consider to not alter ressources (EC2, ENI, EBS volumes) under conversion. (Note: 'ec2-spot-converter:job-id' tag exists since the very firt version of the tool).

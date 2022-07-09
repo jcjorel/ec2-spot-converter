@@ -343,7 +343,7 @@ def stop_instance():
     instance_id    = instance["InstanceId"]
     instance_state = instance["State"]["Name"]
 
-    if args.get("do_not_require_stopped_instance") == True:
+    if args.get("stop_instance") != True and args.get("do_not_require_stopped_instance") == True:
         return (True, f"Instance '{instance_id}' won't be stopped as --do-not-require-stopped-instance is set.", {"FailedStop": True})
 
     failed_stop = False
