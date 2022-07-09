@@ -291,6 +291,13 @@ encounters an error, it should be restartable where it went interrupted without 
 please consult the DynamoDB line corresponding to your instance Id: This line contains JSON states of your original instance and other information (AMI, Interfaces...)
 allowing to reconstruct the original instance by hand. **In such event, please also create a GitHub issue with a precise description of the encountered problem and so help improving the tool!**
 
+> BE CAREFUL ABOUT AUTOMATIC REMEDIATION CONFIGURED IN YOUR LANDING-ZONE! That's good practice to enable periodic checks in a LZ to 
+enforce a known state of your EC2 resources (ex: compliant tagging, delete unattached Security Groups or EBS volumes etc...). Some ec2-spot-converter 
+users encountered failed conversions or non-identical resulting EC2 induced by these LZ remediation mecanisms that altered resources 
+during conversion. In order to avoid such issues, ec2-spot-converter tags all converted ressources with 'ec2-spot-converter:job-id' 
+(with value set to {instance-id}). Thanks to this transient tag, LZ remediation mecanisms should be modified to detect and ignore safely
+ressources under conversion.
+
 ## Contributing
 
 If you'd like to contribute, please fork the repository and use a feature

@@ -293,7 +293,7 @@ def discover_instance_state():
             logger.warning("Pausing 10s... PLEASE READ ABOVE IMPORTANT WARNING!!! DO 'Ctrl-C' NOW IF YOU NEED SOME TIME TO READ!!")
             time.sleep(10)
     if args["do_not_require_stopped_instance"]:
-        if args["stop_instance"]:
+        if "stop_instance" in args:
             logger.warning("/!\ WARNING /!\ --do-not-require-stopped-instance option is set! As --stop-instance is also set, a stop command "
                 "is going to be tried. If it fails, the conversion will continue anyway.") 
         else:
@@ -325,7 +325,7 @@ def discover_instance_state():
     # 'stopped' state management.
     instance_state = instance["State"]["Name"]
 
-    if instance_state != "stopped" and "stop_instance" not in args:
+    if instance_state != "stopped" and "stop_instance" not in args and "do_not_require_stopped_instance" not in args:
         return (False, f"Instance '{instance_id}' must be in 'stopped' state (current={instance_state}) ! Use --stop-instance if you want to stop it.", {})
 
     return (True, f"Instance is in state {instance_state}...", {
@@ -342,6 +342,9 @@ def stop_instance():
     instance       = states["InitialInstanceState"]
     instance_id    = instance["InstanceId"]
     instance_state = instance["State"]["Name"]
+
+    if "do_not_require_stopped_instance" in args:
+        return (True, f"Instance '{instance_id}' won't be stopped as --do-not-require-stopped-instance is set.", {"FailedStop": True})
 
     failed_stop = False
     if instance_state == "stopped":
@@ -372,8 +375,11 @@ def wait_stop_instance():
         if instance is None:
             return (False, "Can't get instance details! (???)", {})
         instance_state = instance["State"]["Name"]
-        if instance_state == "stopped":
+        if instance_state in ["stopped"]:
             break
+        if instance_state in ["terminated"]:
+            return (False, "Instance got terminated during stop instance (?!)! Instance terminated by something else during conversion!!"
+            " Unrecoverable error!", {})
         logger.info(f"Waiting for instance to stop... (current state={instance_state})")
         time.sleep(15)
         max_attempts  -= 1
@@ -961,9 +967,16 @@ def create_new_instance():
 
     # Tags
     if "Tags" in instance:
+        tags = []
+        # Rename reserved aws: namespace tags
+        for t in instance["Tags"]:
+            if t["Key"].startswith("aws:"):
+                logger.warning("Renaming reserved tag '%s' in '_%s' to enable a successful conversion.")
+                t["Key"] = "_%s" % t["Key"]
+            tags.append(t)
         launch_specifications["TagSpecifications"] = [{
             "ResourceType": "instance",
-            "Tags": instance["Tags"]
+            "Tags": tags
             }]
 
     # Spot model
