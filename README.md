@@ -285,7 +285,7 @@ optional arguments:
 
 ## Note about converted instance termination
 
-One must keep in mind that Spot instances have a different life cycle that On-Demand ones. 'ec2-spot-converter' takes care of most of the differences but
+One must keep in mind that Spot instances have a different life cycle than On-Demand ones. `ec2-spot-converter` takes care of most of the differences but
 can not hide some. Especially, terminating a Spot instance may have unexpected consequence: If you terminate a Spot instance without prior-canceling of the
 associated request, a new fresh Spot will be automatically launched by EC2. **In order to prevent this behavior, it is advised to convert back a Spot to 
 On-Demand as a pre-requisite to instance termination**.
